@@ -10,34 +10,52 @@ const openai = new OpenAI({
   dangerouslyAllowBrowser: true
 });
 
-export async function processMessageWithOpenAI(message: string): Promise<AIResponse> {
+export async function processMessageWithOpenAI(inputAudioBlob: Blob): Promise<AIResponse> {
   try {
-    // 1. First get the text response
+    // 1. Speech-to-Text
+    const formData = new FormData();
+    formData.append('file', inputAudioBlob, 'audio.webm');
+    formData.append('model', 'whisper-1');
+
+    const transcriptionResponse = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${import.meta.env.VITE_OPENAI_API_KEY}`,
+      },
+      body: formData,
+    });
+
+    const transcriptionData = await transcriptionResponse.json();
+    const transcribedText = transcriptionData.text;
+
+    if (!transcribedText) {
+      throw new Error('No transcription available');
+    }
+
+    // 2. Chat Completion
     const completion = await openai.chat.completions.create({
-      messages: [{ role: "user", content: message }],
+      messages: [{ role: "user", content: transcribedText }],
       model: "gpt-3.5-turbo",
     });
 
     const textResponse = completion.choices[0]?.message?.content;
     if (!textResponse) {
-      throw new Error('No response from AI');
+      throw new Error('No text response from AI');
     }
 
-    // 2. Then convert that same text to speech
+    // 3. Text-to-Speech
     const speechResponse = await openai.audio.speech.create({
       model: "tts-1",
       voice: "alloy",
-      input: textResponse,  // Using the same text response
+      input: textResponse,
     });
 
-    // 3. Create a playable URL for the audio
-    const audioBlob = new Blob([await speechResponse.arrayBuffer()], { type: 'audio/mpeg' });
-    const audioUrl = URL.createObjectURL(audioBlob);
+    const outputAudioBlob = new Blob([await speechResponse.arrayBuffer()], { type: 'audio/mpeg' });
+    const audioUrl = URL.createObjectURL(outputAudioBlob);
 
-    // 4. Return BOTH text and audio
     return {
-      text: textResponse,    // The text response
-      audioUrl: audioUrl,    // The speech version
+      text: textResponse,
+      audioUrl: audioUrl,
     };
   } catch (error) {
     console.error('Error processing message:', error);

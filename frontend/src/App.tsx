@@ -6,6 +6,7 @@ import VoiceButton from './components/VoiceButton';
 import ResponseDisplay from './components/ResponseDisplay';
 import ErrorMessage from './components/ErrorMessage';
 import { processMessageWithOpenAI, type AIResponse } from './utils/openai';
+import { processMessageWithLocal } from './utils/local';
 import { ConfigError } from './utils/config';
 import Register from './components/Register.tsx';
 import Login from './components/Login.tsx';
@@ -36,66 +37,26 @@ function VoiceAssistant() {
     setError(null);
     setResponse(null);
     setIsProcessing(true);
-    
-    try {
-      // 1. Speech to Text
-      const formData = new FormData();
-      formData.append('file', audioBlob, 'audio.webm');
-      formData.append('model', 'whisper-1');
-      
-      const transcriptionResponse = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${import.meta.env.VITE_OPENAI_API_KEY}`,
-        },
-        body: formData,
-      });
-      
-      const transcriptionData = await transcriptionResponse.json();
-      const transcribedText = transcriptionData.text;
-      
-      // 2. Get AI Response
-      const result = await processMessageWithOpenAI(transcribedText);
-      if (!result) return;
-      
-      // 3. Text to Speech
-      const ttsResponse = await fetch('https://api.openai.com/v1/audio/speech', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${import.meta.env.VITE_OPENAI_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'tts-1',
-          voice: 'alloy',
-          input: result.text,
-          response_format: 'aac',
-        }),
-      });
 
-      const ttsAudioBlob = await ttsResponse.blob();
-      const audioUrl = URL.createObjectURL(ttsAudioBlob);
-      
-      // Play the audio
-      const audio = new Audio(audioUrl);
-      audio.play();
-      
-      setResponse(result);
-      
+    try {
+      // const aiResponse = await processMessageWithOpenAI(audioBlob);
+      const aiResponse = await processMessageWithLocal(audioBlob);
+      setResponse(aiResponse);
+
       const newHistoryItem = {
         timestamp: new Date().toLocaleString(),
-        transcription: result.text,
-        response: result
+        transcription: aiResponse.text,
+        response: aiResponse
       };
-      
+
       const updatedHistory = [newHistoryItem, ...history];
       setHistory(updatedHistory);
       localStorage.setItem('chatHistory', JSON.stringify(updatedHistory));
-    } catch (error: any) {
+    } catch (error) {
       if (error instanceof ConfigError) {
         handleError(`Configuration Error: ${error.message}`);
       } else {
-        handleError(error.message);
+        handleError(error as string);
       }
     } finally {
       setIsProcessing(false);
