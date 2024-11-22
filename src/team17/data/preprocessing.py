@@ -1,23 +1,21 @@
 from team17 import utils
 import torch.utils.data as td
+import os
+import random
+from concurrent.futures import ThreadPoolExecutor
+import dotenv
+import numpy as np
+import pydantic_settings as pyds
+import torch
+import torch.nn.functional as F
+import torchaudio
+from torch.utils.data import IterableDataset
 
 SUPPRESS = True
 
-
 with utils.SuppressLogger(SUPPRESS):
-    import os
-    import random
-    from concurrent.futures import ThreadPoolExecutor
-
-    import dotenv
-    import numpy as np
-    import pydantic_settings as pyds
-    import torch
-    import torch.nn.functional as F
-    import torchaudio
     import transformers
     import whisperx
-    from torch.utils.data import IterableDataset
 
     from team17.whisper_encoder import ModifiedWhisperEncoder
 
@@ -33,7 +31,7 @@ class PreprocessingConfig(pyds.BaseSettings):
     compute_type: str = "float16"
     inner_batch_size: int = 4
     use_cuda: bool = torch.cuda.is_available()
-    chunk_frames: int = 16_000 * 20
+    chunk_frames: int = 16_000 * 24
     sample_rate: int = 16_000
     num_workers: int = 0
 
@@ -64,7 +62,7 @@ class AudioChunkIterableDataset(IterableDataset):
         random.shuffle(self.file_list)
         self.file_list = list(set(self.file_list))
 
-        print(f"FOUND {len(self.file_list)} files")
+        print(f"FOUND {len(self.file_list)} raw files")
 
     def _find_audio_files(self, directory):
         file_list = []
@@ -95,7 +93,6 @@ class AudioChunkIterableDataset(IterableDataset):
 
                 file_path = self.file_list[idx]
                 waveform, sample_rate = torchaudio.load(file_path)
-                # print(waveform.sum().item(), file_path)
 
                 if sample_rate != self.target_sample_rate:
                     resampler = torchaudio.transforms.Resample(
@@ -121,6 +118,7 @@ class AudioChunkIterableDataset(IterableDataset):
 
                 duration = waveform.shape[1] / self.target_sample_rate
                 if duration > 30:
+                    print("DURATION ABOVE 30, skipping")
                     continue
 
                 yield waveform, os.path.basename(file_path)
@@ -196,7 +194,6 @@ def process_audio_chunks(config: PreprocessingConfig):
             config.transcription_model,
             device="cuda" if config.use_cuda else "cpu",
             compute_type="float32" if not config.use_cuda else config.compute_type,
-            # asr_options={"multilingual": False, "hotwords": []},
             language="en",
         )
     diarize_model = whisperx.DiarizationPipeline(
@@ -275,21 +272,34 @@ def process_audio_chunks(config: PreprocessingConfig):
         sequence = []
         audio_emb_indices = []
 
-        # Find first segment of best speaker and make it first
+        # Find first segment of user speaker
         start_idx = 0
         for i, segment in enumerate(result["segments"]):
             if segment["speaker"] == user_speaker:
                 start_idx = i
                 break
 
-        segments = result["segments"][start_idx:]
+        # Find last segment of non-user speaker
+        end_idx = len(result["segments"]) - 1
+        for i in range(len(result["segments"]) - 1, -1, -1):
+            if result["segments"][i]["speaker"] != user_speaker:
+                end_idx = i + 1
+                break
+            if result["segments"][i]["speaker"] == user_speaker:
+                end_idx = i
 
-        # after making user speaker first, check again that audio still has 2 speakers
+        # Only use segments between start_idx and end_idx
+        segments = result["segments"][start_idx:end_idx]
+
+        # Check again that audio still has 2 speakers
         num_speakers = len(set([i["speaker"] for i in segments]))
         if num_speakers != 2:
-            # utils.play_audio(waveform[0])
-            # print([(i["text"], i["speaker"]) for i in segments])
             print("2. Only one speaker skipping ... ")
+            continue
+
+        # Verify that first speaker is user
+        if segments[0]["speaker"] != user_speaker:
+            print("3. Invalid speaker sequence, skipping ...")
             continue
 
         input_features = whisper_fe(
@@ -318,9 +328,6 @@ def process_audio_chunks(config: PreprocessingConfig):
             "text": text,
             "audio_emb": embeddings.cpu().numpy(),
         }
-
-        print("SUCCESS!!!")
-        breakpoint()
 
         save_executor.submit(
             _save_processed_data, processed_data, filename, config.output_path
