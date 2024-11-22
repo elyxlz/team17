@@ -161,6 +161,11 @@ def analyze_speakers_pronouns(transcript_data):
     return user_speaker, speaker_stats
 
 
+def get_num_speakers(segments: list) -> int:
+    num_speakers = len(set([i["speaker"] for i in segments if "speaker" in i]))
+    return num_speakers
+
+
 def _save_processed_data(processed_data, filename, output_path):
     subdir = filename[:2]
     full_output_path = os.path.join(output_path, subdir)
@@ -247,7 +252,7 @@ def process_audio_chunks(config: PreprocessingConfig):
         diarize_segments = diarize_model(audio)
         result = whisperx.assign_word_speakers(diarize_segments, result)
 
-        num_speakers = len(set([i["speaker"] for i in result["segments"]]))
+        num_speakers = get_num_speakers(result["segments"])
         if num_speakers != 2:
             print("1: Only one speaker skipping ... ")
             continue
@@ -281,7 +286,7 @@ def process_audio_chunks(config: PreprocessingConfig):
         segments = result["segments"][start_idx:]  # end_idx]
 
         # Check again that audio still has 2 speakers
-        num_speakers = len(set([i["speaker"] for i in segments]))
+        num_speakers = get_num_speakers(segments)
         if num_speakers != 2:
             print("2. Only one speaker skipping ... ")
             continue
