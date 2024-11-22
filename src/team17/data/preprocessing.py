@@ -95,7 +95,7 @@ class AudioChunkIterableDataset(IterableDataset):
 
                 file_path = self.file_list[idx]
                 waveform, sample_rate = torchaudio.load(file_path)
-                print(waveform.sum().item(), file_path)
+                # print(waveform.sum().item(), file_path)
 
                 if sample_rate != self.target_sample_rate:
                     resampler = torchaudio.transforms.Resample(
@@ -126,7 +126,7 @@ class AudioChunkIterableDataset(IterableDataset):
                 yield waveform, os.path.basename(file_path)
 
             except Exception as e:
-                print(f"Error processing {file_path}: {str(e)}")
+                print(f"Error processing in dataset: {str(e)}")
                 continue
 
 
@@ -287,8 +287,8 @@ def process_audio_chunks(config: PreprocessingConfig):
         # after making user speaker first, check again that audio still has 2 speakers
         num_speakers = len(set([i["speaker"] for i in segments]))
         if num_speakers != 2:
-            utils.play_audio(waveform[0])
-            print([(i["text"], i["speaker"]) for i in segments])
+            # utils.play_audio(waveform[0])
+            # print([(i["text"], i["speaker"]) for i in segments])
             print("2. Only one speaker skipping ... ")
             continue
 
@@ -320,6 +320,7 @@ def process_audio_chunks(config: PreprocessingConfig):
         }
 
         print("SUCCESS!!!")
+        breakpoint()
 
         save_executor.submit(
             _save_processed_data, processed_data, filename, config.output_path
