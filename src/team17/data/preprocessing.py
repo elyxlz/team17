@@ -98,6 +98,7 @@ class AudioChunkDataset(Dataset):
                 return self.__getitem__(idx + 1)
 
             # Pad or cut to chunk_frames
+            breakpoint()
             if waveform.shape[1] < self.chunk_frames:
                 waveform = F.pad(waveform, (0, self.chunk_frames - waveform.shape[1]))
             elif waveform.shape[1] > self.chunk_frames:
