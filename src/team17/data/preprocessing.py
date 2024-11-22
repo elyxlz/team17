@@ -284,22 +284,16 @@ def process_audio_chunks(config: PreprocessingConfig):
                 start_idx = i
                 break
 
-        last_non_user_idx = -1
-        for i, segment in enumerate(result["segments"]):
-            if segment["speaker"] != user_speaker:
-                last_non_user_idx = i
-
-        # Find last segment of non-user speaker
-        # end_idx = len(result["segments"]) - 1
-        # for i in range(len(result["segments"]) - 1, -1, -1):
-        #     if result["segments"][i]["speaker"] != user_speaker:
-        #         end_idx = i + 1
-        #         break
-        #     if result["segments"][i]["speaker"] == user_speaker:
-        #         end_idx = i
+        last_idx = -1
+        for i in range(len(result["segments"]) - 1):
+            if (
+                result["segments"][i]["speaker"] != user_speaker
+                and result["segments"][i + 1]["speaker"] == user_speaker
+            ):
+                last_idx = i
 
         # Only use segments between start_idx and end_idx
-        cropped_segments = segments[start_idx:last_non_user_idx]
+        cropped_segments = segments[start_idx : last_idx + 1]
 
         # Check again that audio still has 2 speakers
         num_speakers = get_num_speakers(cropped_segments)
