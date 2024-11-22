@@ -2,6 +2,11 @@ from team17 import utils
 
 SUPPRESS = False
 
+import torch
+
+torch.backends.cuda.matmul.allow_tf32 = True
+torch.backends.cudnn.allow_tf32 = True
+
 with utils.SuppressLogger(SUPPRESS):
     import os
     import random
@@ -9,7 +14,6 @@ with utils.SuppressLogger(SUPPRESS):
     import dotenv
     import numpy as np
     import pydantic_settings as pyds
-    import torch
     import torch.nn.functional as F
     import torchaudio
     import transformers
@@ -20,10 +24,6 @@ with utils.SuppressLogger(SUPPRESS):
     from team17.whisper_encoder import ModifiedWhisperEncoder
 
 dotenv.load_dotenv()
-
-
-torch.backends.cuda.matmul.allow_tf32 = True
-torch.backends.cudnn.allow_tf32 = True
 
 
 class PreprocessingConfig(pyds.BaseSettings):
