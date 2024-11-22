@@ -213,7 +213,10 @@ def process_audio_chunks(config: PreprocessingConfig):
         # Get transcription and alignment
         with utils.SuppressLogger(SUPPRESS):
             result = asr_model.transcribe(
-                audio, batch_size=config.inner_batch_size, print_progress=True
+                audio,
+                batch_size=config.inner_batch_size,
+                print_progress=True,
+                combined_progress=True,
             )
             if result["language"] != "en":
                 continue
