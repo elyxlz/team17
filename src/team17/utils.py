@@ -57,5 +57,8 @@ def play_audio(x: torch.Tensor, sr: int = 16000) -> None:
 
     audio_numpy = x.cpu().float().numpy().T  # Transpose to (num_samples, num_channels)
     sf.write(temp_filename, audio_numpy, samplerate=sr)  # Assuming 44.1kHz sample rate
-    subprocess.run(["vlc", "--play-and-exit", temp_filename], check=True)
+    try:
+        subprocess.run(["vlc", "--play-and-exit", temp_filename], check=True)
+    except Exception as e:
+        print("no vlc")
     os.remove(temp_filename)
