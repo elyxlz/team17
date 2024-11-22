@@ -301,11 +301,6 @@ def process_audio_chunks(config: PreprocessingConfig):
             print("2. Only one speaker skipping ... ")
             continue
 
-        # Verify that first speaker is user
-        # if segments[0]["speaker"] != user_speaker: # TOOD:
-        #     print("3. Invalid speaker sequence, skipping ...")
-        #     continue
-
         input_features = whisper_fe(
             audio, sampling_rate=config.sample_rate, return_tensors="pt"
         ).to(device)["input_features"]
@@ -337,8 +332,6 @@ def process_audio_chunks(config: PreprocessingConfig):
             "text": text,
             "audio_emb": embeddings.cpu().numpy(),
         }
-
-        breakpoint()
 
         save_executor.submit(
             _save_processed_data, processed_data, filename, config.output_path
