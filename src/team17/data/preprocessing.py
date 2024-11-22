@@ -267,23 +267,23 @@ def process_audio_chunks(config: PreprocessingConfig):
         audio_emb_indices = []
 
         # Find first segment of user speaker
-        start_idx = 0
-        for i, segment in enumerate(result["segments"]):
-            if segment["speaker"] == user_speaker:
-                start_idx = i
-                break
+        # start_idx = 0
+        # for i, segment in enumerate(result["segments"]):
+        #     if segment["speaker"] == user_speaker:
+        #         start_idx = i
+        #         break
 
         # Find last segment of non-user speaker
-        end_idx = len(result["segments"]) - 1
-        for i in range(len(result["segments"]) - 1, -1, -1):
-            if result["segments"][i]["speaker"] != user_speaker:
-                end_idx = i + 1
-                break
-            if result["segments"][i]["speaker"] == user_speaker:
-                end_idx = i
+        # end_idx = len(result["segments"]) - 1
+        # for i in range(len(result["segments"]) - 1, -1, -1):
+        #     if result["segments"][i]["speaker"] != user_speaker:
+        #         end_idx = i + 1
+        #         break
+        #     if result["segments"][i]["speaker"] == user_speaker:
+        #         end_idx = i
 
         # Only use segments between start_idx and end_idx
-        segments = result["segments"][start_idx:]  # end_idx]
+        segments = result["segments"]  # [start_idx:end_idx]
 
         # Check again that audio still has 2 speakers
         num_speakers = get_num_speakers(segments)
