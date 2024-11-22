@@ -104,12 +104,7 @@ class AudioChunkDataset(Dataset):
             elif waveform.shape[1] > self.chunk_frames:
                 waveform = waveform[:, : self.chunk_frames]
 
-            # Check duration
             duration = waveform.shape[1] / self.target_sample_rate
-            # if duration > 30:
-            #     print(f"Duration above 30 seconds for {file_path}, skipping")
-            #     return self.__getitem__(idx + 1)
-            print(duration)
 
             return dict(
                 waveform=waveform,
@@ -304,7 +299,7 @@ def process_audio_chunks(config: PreprocessingConfig):
         #         end_idx = i
 
         # Only use segments between start_idx and end_idx
-        segments = segments[start_idx:last_non_user_idx]
+        segments = segments[start_idx : last_non_user_idx - 1]
 
         # Check again that audio still has 2 speakers
         num_speakers = get_num_speakers(segments)
