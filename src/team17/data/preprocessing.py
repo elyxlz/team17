@@ -79,6 +79,7 @@ class AudioChunkIterableDataset(IterableDataset):
         for file_path in self.file_list:
             try:
                 waveform, sample_rate = torchaudio.load(file_path)
+                print(waveform.sum().item(), file_path)
 
                 if sample_rate != self.target_sample_rate:
                     resampler = torchaudio.transforms.Resample(
