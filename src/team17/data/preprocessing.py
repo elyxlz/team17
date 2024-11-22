@@ -240,9 +240,6 @@ def process_audio_chunks(config: PreprocessingConfig):
             print("1: Only one speaker skipping ... ")
             continue
 
-        breakpoint()
-        print([(i["text"], i["speaker"]) for i in result["segments"]])
-
         user_speaker = analyze_speakers_pronouns(result)[0]
         if user_speaker is None:
             print("Cant find user speaker, skipping ... ")
@@ -295,6 +292,8 @@ def process_audio_chunks(config: PreprocessingConfig):
             "text": text,
             "audio_emb": embeddings.cpu().numpy(),
         }
+
+        print("SUCCESS!!!")
 
         save_executor.submit(
             _save_processed_data, processed_data, filename, config.output_path
