@@ -108,8 +108,13 @@ class AudioChunkDataset(Dataset):
             # if duration > 30:
             #     print(f"Duration above 30 seconds for {file_path}, skipping")
             #     return self.__getitem__(idx + 1)
+            print(duration)
 
-            return dict(waveform=waveform, filename=os.path.basename(file_path))
+            return dict(
+                waveform=waveform,
+                filename=os.path.basename(file_path),
+                duration=duration,
+            )
 
         except Exception as e:
             print(f"Error processing: {str(e)}")
