@@ -1,17 +1,33 @@
+import logging
 import os
 import random
+import warnings
 from concurrent.futures import ThreadPoolExecutor
 
 import dotenv
 import numpy as np
 import pydantic_settings as pyds
+import pytorch_lightning as pl
 import torch
 import torch.nn.functional as F
 import torchaudio
 import transformers
 import whisperx
 from torch.utils.data import IterableDataset
-from tqdm import tqdm
+
+# Suppress all warnings
+warnings.filterwarnings("ignore")
+logging.getLogger().setLevel(logging.ERROR)
+pl.utilities.warnings.PossibleUserWarning.ignore_warnings = True  # type: ignore
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
+os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
+os.environ["TRANSFORMERS_NO_ADVISORY_WARNINGS"] = "true"
+os.environ["TRANSFORMERS_VERBOSITY"] = "error"
+os.environ["SB_DISABLE_QUIRKS"] = "all"
+warnings.filterwarnings("ignore")
+logging.getLogger().setLevel(logging.ERROR)
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
+torch.set_warn_always(False)
 
 from team17.whisper_encoder import ModifiedWhisperEncoder
 
@@ -27,7 +43,7 @@ class PreprocessingConfig(pyds.BaseSettings):
     compute_type: str = "float16"
     inner_batch_size: int = 4
     use_cuda: bool = torch.cuda.is_available()
-    chunk_frames: int = 16_000 * 3
+    chunk_frames: int = 16_000 * 20
     sample_rate: int = 16_000
     num_workers: int = 0
 
@@ -132,7 +148,7 @@ def analyze_speakers_pronouns(transcript_data):
                     stats[speaker][pronoun_type] += 1
         return stats
 
-    def find_best_speaker(stats):
+    def find_user_speaker(stats):
         return max(
             stats.items(),
             key=lambda x: x[1]["first_person"] / (x[1]["second_person"] + 0.1),
@@ -140,9 +156,9 @@ def analyze_speakers_pronouns(transcript_data):
         )[0]
 
     speaker_stats = count_pronouns(get_speakers())
-    best_speaker = find_best_speaker(speaker_stats)
+    user_speaker = find_user_speaker(speaker_stats)
 
-    return best_speaker, speaker_stats
+    return user_speaker, speaker_stats
 
 
 def _save_processed_data(processed_data, filename, output_path):
@@ -226,37 +242,45 @@ def process_audio_chunks(config: PreprocessingConfig):
 
         num_speakers = len(set([i["speaker"] for i in result["segments"]]))
         if num_speakers != 2:
+            print("Only one speaker skipping ... ")
             continue
 
-        input_features = whisper_fe(
-            audio, sampling_rate=config.sample_rate, return_tensors="pt"
-        ).to(device)["input_features"]
-        embeddings = embedding_model(input_features).last_hidden_state.cpu().float16()
-
-        best_speaker = analyze_speakers_pronouns(result)[0]
-        if best_speaker is None:
+        user_speaker = analyze_speakers_pronouns(result)[0]
+        if user_speaker is None:
+            print("Cant find user speaker, skipping ... ")
             continue
-
-        breakpoint()
 
         # Process segments
         sequence = []
         audio_emb_indices = []
 
-        # Find first segment of best speaker
+        # Find first segment of best speaker and make it first
         start_idx = 0
         for i, segment in enumerate(result["segments"]):
-            if segment["speaker"] == best_speaker:
+            if segment["speaker"] == user_speaker:
                 start_idx = i
                 break
 
         segments = result["segments"][start_idx:]
 
+        # after making user speaker first, check again that audio still has 2 speakers
+        num_speakers = len(set([i["speaker"] for i in segments]))
+        if num_speakers != 2:
+            print("Only one speaker skipping ... ")
+            continue
+
+        input_features = whisper_fe(
+            audio, sampling_rate=config.sample_rate, return_tensors="pt"
+        ).to(device)["input_features"]
+        embeddings = (
+            embedding_model(input_features).last_hidden_state.cpu().to(torch.float16)
+        )
+
         for segment in segments:
             start_time = segment["start"]
             end_time = segment["end"]
 
-            if segment["speaker"] == best_speaker:
+            if segment["speaker"] == user_speaker:
                 start_idx = time_to_idx(start_time)
                 end_idx = time_to_idx(end_time)
                 audio_emb_indices.extend(list(range(start_idx, end_idx)))
@@ -265,12 +289,11 @@ def process_audio_chunks(config: PreprocessingConfig):
             else:
                 sequence.append(segment["text"])
 
-        audio_emb_indices = torch.tensor(audio_emb_indices)
-        selected_embeddings = embeddings[audio_emb_indices]
+        text = "".join(sequence)
 
         processed_data = {
-            "text": "".join(sequence),
-            "audio_emb": selected_embeddings.cpu().numpy(),
+            "text": text,
+            "audio_emb": embeddings.cpu().numpy(),
         }
 
         save_executor.submit(
