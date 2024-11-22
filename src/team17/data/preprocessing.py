@@ -1,43 +1,44 @@
 import os
 from concurrent.futures import ThreadPoolExecutor
+from typing import Dict, Optional
 
+import dotenv
 import numpy as np
 import pydantic_settings as pyds
 import torch
 import torchaudio
-from torch.utils.data import DataLoader, Dataset
+import transformers
+import whisperx
+from torch.utils.data import Dataset
 from tqdm import tqdm
+
+from team17 import utils
+from team17.whisper_encoder import ModifiedWhisperEncoder
+
+dotenv.load_dotenv()
 
 
 class PreprocessingConfig(pyds.BaseSettings):
-    voxtral_tokenizer_config: VoxtralTokenizerConfig = VoxtralTokenizerConfig()
     input_path: str = "./data/chunks"
-    output_path: str = "./data/tokens"
-    batch_size: int = 4
-    num_workers: int = 20
-    pin_memory: bool = True
-    compile_tokenizer: bool = True  # False
-    max_save_workers: int = 16
+    output_path: str = "./data/processed"
+    transcription_model: str = "medium"  # Model for transcription
+    embedding_model: str = "small"  # Model for embeddings
+    min_speakers: Optional[int] = None
+    max_speakers: Optional[int] = None
+    compute_type: str = "float16"
     use_cuda: bool = torch.cuda.is_available()
-    tokenizer_dtype: torch.dtype = torch.float16
-    chunk_frames: int = 20 * 24_000  # New parameter for fixed chunk size
-    num_channels: int = 1  # New parameter for number of channels
+    chunk_frames: int = 16_000 * 20
+    sample_rate: int = 16_000
+    max_save_workers: int = 16
 
 
 class AudioChunkDataset(Dataset):
     def __init__(
-        self,
-        input_path: str,
-        target_sample_rate: int,
-        chunk_frames: int,
-        num_channels: int,
-        dtype: torch.dtype,
+        self, input_path: str, target_sample_rate: int, chunk_frames: int
     ) -> None:
         self.input_path = input_path
         self.target_sample_rate = target_sample_rate
         self.chunk_frames = chunk_frames
-        self.num_channels = num_channels
-        self.dtype = dtype
         self.file_list = []
         self._find_audio_files(input_path)
 
@@ -62,11 +63,9 @@ class AudioChunkDataset(Dataset):
             )
             waveform = resampler(waveform)
 
-        # Adjust number of channels
-        if waveform.shape[0] < self.num_channels:
-            waveform = waveform.repeat(self.num_channels, 1)
-        elif waveform.shape[0] > self.num_channels:
-            waveform = waveform[: self.num_channels]
+        # Convert to mono if needed
+        if waveform.shape[0] > 1:
+            waveform = torch.mean(waveform, dim=0, keepdim=True)
 
         # Pad or cut to chunk_frames
         if waveform.shape[1] < self.chunk_frames:
@@ -76,59 +75,129 @@ class AudioChunkDataset(Dataset):
         elif waveform.shape[1] > self.chunk_frames:
             waveform = waveform[:, : self.chunk_frames]
 
-        waveform = waveform.to(self.dtype)
+        duration = waveform.shape[1] / self.target_sample_rate
+        if duration > 30:
+            raise ValueError(
+                f"Audio duration {duration:.2f}s exceeds maximum allowed duration of 30s"
+            )
 
-        return waveform, os.path.basename(self.file_list[idx])
-
-
-def _create_dataloader(config: PreprocessingConfig) -> DataLoader:
-    dataset = AudioChunkDataset(
-        config.input_path,
-        target_sample_rate=24_000,
-        chunk_frames=config.chunk_frames,
-        num_channels=config.num_channels,
-        dtype=config.tokenizer_dtype,
-    )
-    return DataLoader(
-        dataset,
-        batch_size=config.batch_size,
-        num_workers=config.num_workers,
-        pin_memory=config.pin_memory,
-    )
+        return waveform, os.path.basename(file_path)
 
 
-def _save_tokens(encoded_tokens: np.ndarray, filename: str, output_path: str):
+def _save_processed_data(
+    embeddings: torch.Tensor,
+    speaker_segments: Dict[str, Dict],
+    filename: str,
+    output_path: str,
+):
     subdir = filename[:2]
     full_output_path = os.path.join(output_path, subdir)
     os.makedirs(full_output_path, exist_ok=True)
-    output_file = os.path.join(full_output_path, f"{os.path.splitext(filename)[0]}.npy")
-    np.save(output_file, encoded_tokens.cpu().numpy())
+    output_file = os.path.join(full_output_path, f"{os.path.splitext(filename)[0]}.npz")
+
+    np.savez(output_file, embeddings=embeddings.cpu().numpy(), **speaker_segments)
 
 
-def preprocess_audio_chunks(config: PreprocessingConfig):
+@torch.no_grad()
+def process_audio_chunks(config: PreprocessingConfig):
     if not os.path.exists(config.output_path):
         os.makedirs(config.output_path)
 
-    dataloader = _create_dataloader(config)
-
+    # Initialize models
     device = torch.device("cuda" if config.use_cuda else "cpu")
-    tokenizer = VoxtralTokenizer(config.voxtral_tokenizer_config).to(
-        device=device, dtype=config.tokenizer_dtype
+
+    # Load transcription model
+    asr_model = whisperx.load_model(
+        config.transcription_model,
+        device="cuda" if config.use_cuda else "cpu",
+        compute_type="float32" if not config.use_cuda else config.compute_type,
+        asr_options={
+            "multilingual": False,
+            "hotwords": [],
+        },
+        language="en",
     )
-    if config.compile_tokenizer:
-        tokenizer: VoxtralTokenizer = torch.compile(tokenizer, mode="reduce-overhead")  # type: ignore
+
+    # Load alignment model (will be loaded based on detected language)
+    diarize_model = whisperx.DiarizationPipeline(
+        device=device, use_auth_token=os.getenv("HF_TOKEN")
+    )
+
+    # Load embedding model
+    whisper_fe = transformers.WhisperFeatureExtractor.from_pretrained(
+        f"openai/whisper-{config.embedding_model}",
+        chunk_length=config.chunk_frames // config.sample_rate,
+    )
+    embedding_model = ModifiedWhisperEncoder.from_pretrained(
+        f"openai/whisper-{config.embedding_model}"
+    )
+    embedding_model.to(device)
+
+    dataset = AudioChunkDataset(
+        config.input_path,
+        target_sample_rate=config.sample_rate,
+        chunk_frames=config.chunk_frames,
+    )
 
     save_executor = ThreadPoolExecutor(max_workers=config.max_save_workers)
 
-    for batch in tqdm(dataloader, desc="Processing audio chunks"):
-        waveforms, filenames = batch
-        encoded = tokenizer.encode(waveforms, 24_000)
-        for z, filename in zip(encoded, filenames):
-            save_executor.submit(_save_tokens, z, filename, config.output_path)
+    for idx in tqdm(range(len(dataset)), desc="Processing audio chunks"):
+        waveform, filename = dataset[idx]
+        audio = waveform.squeeze().numpy()
+
+        # Get transcription and alignment
+        result = asr_model.transcribe(audio, batch_size=1)
+        language = result["language"]
+
+        if language != "en":
+            print(f"skipping weird language {language}")
+            continue
+
+        # Load language-specific alignment model
+        align_model, metadata = whisperx.load_align_model(
+            language_code=language, device=device
+        )
+        result = whisperx.align(
+            result["segments"], align_model, metadata, audio, device
+        )
+
+        # Get speaker diarization
+        diarize_segments = diarize_model(
+            audio, min_speakers=config.min_speakers, max_speakers=config.max_speakers
+        )
+        result = whisperx.assign_word_speakers(diarize_segments, result)
+
+        # Get audio embeddings
+        input_features = whisper_fe(
+            audio, sampling_rate=config.sample_rate, return_tensors="pt"
+        ).to(device)["input_features"]
+        embeddings = embedding_model(input_features).last_hidden_state
+
+        utils.play_audio(waveform)
+        breakpoint()
+
+        # Organize segments by speaker
+        speaker_segments = {}
+        for segment in result["segments"]:
+            speaker = segment["speaker"]
+            if speaker not in speaker_segments:
+                speaker_segments[speaker] = {"transcripts": [], "timestamps": []}
+            speaker_segments[speaker]["transcripts"].append(segment["text"])
+            speaker_segments[speaker]["timestamps"].append(
+                [segment["start"], segment["end"]]
+            )
+
+        save_executor.submit(
+            _save_processed_data,
+            embeddings,
+            speaker_segments,
+            filename,
+            config.output_path,
+        )
 
     save_executor.shutdown(wait=True)
 
 
 if __name__ == "__main__":
     config = PreprocessingConfig()
-    preprocess_audio_chunks(config)
+    process_audio_chunks(config)
