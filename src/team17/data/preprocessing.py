@@ -164,8 +164,6 @@ def process_audio_chunks(config: PreprocessingConfig):
 
     device = torch.device("cuda" if config.use_cuda else "cpu")
 
-    breakpoint()
-
     # Load models
     with utils.SuppressLogger(SUPPRESS):
         asr_model = whisperx.load_model(
@@ -214,7 +212,9 @@ def process_audio_chunks(config: PreprocessingConfig):
 
         # Get transcription and alignment
         with utils.SuppressLogger(SUPPRESS):
-            result = asr_model.transcribe(audio, batch_size=config.inner_batch_size)
+            result = asr_model.transcribe(
+                audio, batch_size=config.inner_batch_size, print_progress=True
+            )
             if result["language"] != "en":
                 continue
 
