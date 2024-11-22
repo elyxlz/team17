@@ -332,6 +332,8 @@ def process_audio_chunks(config: PreprocessingConfig):
             "audio_emb": embeddings.cpu().numpy(),
         }
 
+        breakpoint()
+
         save_executor.submit(
             _save_processed_data, processed_data, filename, config.output_path
         )
