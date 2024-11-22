@@ -1,35 +1,22 @@
-import logging
-import os
-import random
-import warnings
-from concurrent.futures import ThreadPoolExecutor
+from team17 import utils
 
-import dotenv
-import numpy as np
-import pydantic_settings as pyds
-import pytorch_lightning as pl
-import torch
-import torch.nn.functional as F
-import torchaudio
-import transformers
-import whisperx
-from torch.utils.data import IterableDataset
+SUPPRESS = True
 
-# Suppress all warnings
-warnings.filterwarnings("ignore")
-logging.getLogger().setLevel(logging.ERROR)
-pl.utilities.warnings.PossibleUserWarning.ignore_warnings = True  # type: ignore
-os.environ["TOKENIZERS_PARALLELISM"] = "false"
-os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
-os.environ["TRANSFORMERS_NO_ADVISORY_WARNINGS"] = "true"
-os.environ["TRANSFORMERS_VERBOSITY"] = "error"
-os.environ["SB_DISABLE_QUIRKS"] = "all"
-warnings.filterwarnings("ignore")
-logging.getLogger().setLevel(logging.ERROR)
-os.environ["TOKENIZERS_PARALLELISM"] = "false"
-torch.set_warn_always(False)
-
-from team17.whisper_encoder import ModifiedWhisperEncoder
+with utils.SuppressLogger(SUPPRESS):
+    import os
+    import random
+    from concurrent.futures import ThreadPoolExecutor
+    import dotenv
+    import numpy as np
+    import pydantic_settings as pyds
+    import pytorch_lightning as pl
+    import torch
+    import torch.nn.functional as F
+    import torchaudio
+    import transformers
+    import whisperx
+    from torch.utils.data import IterableDataset
+    from team17.whisper_encoder import ModifiedWhisperEncoder
 
 dotenv.load_dotenv()
 
@@ -177,13 +164,14 @@ def process_audio_chunks(config: PreprocessingConfig):
     device = torch.device("cuda" if config.use_cuda else "cpu")
 
     # Load models
-    asr_model = whisperx.load_model(
-        config.transcription_model,
-        device="cuda" if config.use_cuda else "cpu",
-        compute_type="float32" if not config.use_cuda else config.compute_type,
-        # asr_options={"multilingual": False, "hotwords": []},
-        language="en",
-    )
+    with utils.SuppressLogger(SUPPRESS):
+        asr_model = whisperx.load_model(
+            config.transcription_model,
+            device="cuda" if config.use_cuda else "cpu",
+            compute_type="float32" if not config.use_cuda else config.compute_type,
+            # asr_options={"multilingual": False, "hotwords": []},
+            language="en",
+        )
     diarize_model = whisperx.DiarizationPipeline(
         device=device, use_auth_token=os.getenv("HF_TOKEN")
     )
@@ -222,9 +210,10 @@ def process_audio_chunks(config: PreprocessingConfig):
         audio = waveform.squeeze().numpy()
 
         # Get transcription and alignment
-        result = asr_model.transcribe(audio, batch_size=config.inner_batch_size)
-        if result["language"] != "en":
-            continue
+        with utils.SuppressLogger(SUPPRESS):
+            result = asr_model.transcribe(audio, batch_size=config.inner_batch_size)
+            if result["language"] != "en":
+                continue
 
         align_model, metadata = whisperx.load_align_model(
             language_code=result["language"], device=device
