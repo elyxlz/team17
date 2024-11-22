@@ -33,9 +33,9 @@ class PreprocessingConfig(pyds.BaseSettings):
     compute_type: str = "float16"
     inner_batch_size: int = 4
     use_cuda: bool = torch.cuda.is_available()
-    chunk_frames: int = 16_000 * 24
+    chunk_frames: int = 16_000 * 60
     sample_rate: int = 16_000
-    num_workers: int = 0
+    num_workers: int = 8
 
 
 def _is_silent(waveform: torch.Tensor, thresh: float) -> bool:
