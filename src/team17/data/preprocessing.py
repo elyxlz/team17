@@ -289,6 +289,11 @@ def process_audio_chunks(config: PreprocessingConfig):
                 start_idx = i
                 break
 
+        last_non_user_idx = -1
+        for i, segment in enumerate(result["segments"]):
+            if segment["speaker"] != user_speaker:
+                last_non_user_idx = i
+
         # Find last segment of non-user speaker
         # end_idx = len(result["segments"]) - 1
         # for i in range(len(result["segments"]) - 1, -1, -1):
@@ -299,7 +304,7 @@ def process_audio_chunks(config: PreprocessingConfig):
         #         end_idx = i
 
         # Only use segments between start_idx and end_idx
-        segments = segments[start_idx:]
+        segments = segments[start_idx:last_non_user_idx]
 
         # Check again that audio still has 2 speakers
         num_speakers = get_num_speakers(segments)
