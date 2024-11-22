@@ -1,9 +1,7 @@
-from team17 import utils
-from tqdm import tqdm
-import torch.utils.data as td
 import os
 import random
 from concurrent.futures import ThreadPoolExecutor
+
 import dotenv
 import numpy as np
 import pydantic_settings as pyds
@@ -11,6 +9,9 @@ import torch
 import torch.nn.functional as F
 import torchaudio
 from torch.utils.data import Dataset
+from tqdm import tqdm
+
+from team17 import utils
 
 SUPPRESS = True
 
@@ -257,7 +258,7 @@ def process_audio_chunks(config: PreprocessingConfig):
         # make sure all segments have a speaker
         no_speaker = False
         for segment in result["segments"]:
-            if segment.get("speaker") == None:
+            if segment.get("speaker") is None:
                 no_speaker = True
 
         if no_speaker:
@@ -321,7 +322,6 @@ def process_audio_chunks(config: PreprocessingConfig):
             ],
             dim=1,
         )
-        breakpoint()
 
         for segment in segments:
             start_time = segment["start"]
