@@ -1,6 +1,6 @@
 import os
+import random
 from concurrent.futures import ThreadPoolExecutor
-from typing import Dict, Optional
 
 import dotenv
 import numpy as np
@@ -19,13 +19,13 @@ dotenv.load_dotenv()
 
 
 class PreprocessingConfig(pyds.BaseSettings):
+    seed: int = 1338
     input_path: str = "./data/chunks"
     output_path: str = "./data/processed"
     transcription_model: str = "medium"  # Model for transcription
     embedding_model: str = "small"  # Model for embeddings
-    min_speakers: Optional[int] = None
-    max_speakers: Optional[int] = None
     compute_type: str = "float16"
+    inner_batch_size: int = 4
     use_cuda: bool = torch.cuda.is_available()
     chunk_frames: int = 16_000 * 20
     sample_rate: int = 16_000
@@ -34,13 +34,16 @@ class PreprocessingConfig(pyds.BaseSettings):
 
 class AudioChunkDataset(Dataset):
     def __init__(
-        self, input_path: str, target_sample_rate: int, chunk_frames: int
+        self, input_path: str, target_sample_rate: int, chunk_frames: int, seed: int
     ) -> None:
         self.input_path = input_path
         self.target_sample_rate = target_sample_rate
         self.chunk_frames = chunk_frames
         self.file_list = []
         self._find_audio_files(input_path)
+
+        random.seed(seed)
+        random.shuffle(self.file_list)
 
     def _find_audio_files(self, directory):
         for root, _, files in os.walk(directory):
@@ -84,9 +87,54 @@ class AudioChunkDataset(Dataset):
         return waveform, os.path.basename(file_path)
 
 
+def analyze_speakers_pronouns(transcript_data):
+    PRONOUNS = {
+        "first_person": {"i", "i'm", "i've", "i'll", "i'd", "me", "my", "mine"},
+        "second_person": {
+            "you",
+            "you're",
+            "you've",
+            "you'll",
+            "you'd",
+            "your",
+            "yours",
+        },
+    }
+
+    def get_speakers():
+        return {
+            word["speaker"]: {"first_person": 0, "second_person": 0}
+            for word in transcript_data["word_segments"]
+            if word.get("speaker") is not None
+        }
+
+    def count_pronouns(stats):
+        for word_data in transcript_data["word_segments"]:
+            if (speaker := word_data.get("speaker")) is None:
+                continue
+
+            word = word_data["word"].lower().strip(".,!?")
+            for pronoun_type, pronoun_set in PRONOUNS.items():
+                if word in pronoun_set:
+                    stats[speaker][pronoun_type] += 1
+        return stats
+
+    def find_best_speaker(stats):
+        return max(
+            stats.items(),
+            key=lambda x: x[1]["first_person"] / (x[1]["second_person"] + 0.1),
+            default=(None, {}),
+        )[0]
+
+    speaker_stats = count_pronouns(get_speakers())
+    best_speaker = find_best_speaker(speaker_stats)
+
+    return best_speaker, speaker_stats
+
+
 def _save_processed_data(
     embeddings: torch.Tensor,
-    speaker_segments: Dict[str, Dict],
+    speaker_segments: dict[str, dict],
     filename: str,
     output_path: str,
 ):
@@ -111,10 +159,7 @@ def process_audio_chunks(config: PreprocessingConfig):
         config.transcription_model,
         device="cuda" if config.use_cuda else "cpu",
         compute_type="float32" if not config.use_cuda else config.compute_type,
-        asr_options={
-            "multilingual": False,
-            "hotwords": [],
-        },
+        asr_options={"multilingual": False, "hotwords": []},
         language="en",
     )
 
@@ -131,12 +176,13 @@ def process_audio_chunks(config: PreprocessingConfig):
     embedding_model = ModifiedWhisperEncoder.from_pretrained(
         f"openai/whisper-{config.embedding_model}"
     )
-    embedding_model.to(device)
+    embedding_model.to(device)  # type: ignore
 
     dataset = AudioChunkDataset(
         config.input_path,
         target_sample_rate=config.sample_rate,
         chunk_frames=config.chunk_frames,
+        seed=config.seed,
     )
 
     save_executor = ThreadPoolExecutor(max_workers=config.max_save_workers)
@@ -146,7 +192,7 @@ def process_audio_chunks(config: PreprocessingConfig):
         audio = waveform.squeeze().numpy()
 
         # Get transcription and alignment
-        result = asr_model.transcribe(audio, batch_size=1)
+        result = asr_model.transcribe(audio, batch_size=config.inner_batch_size)
         language = result["language"]
 
         if language != "en":
@@ -158,14 +204,22 @@ def process_audio_chunks(config: PreprocessingConfig):
             language_code=language, device=device
         )
         result = whisperx.align(
-            result["segments"], align_model, metadata, audio, device
+            result["segments"],
+            align_model,
+            metadata,
+            audio,
+            device,  # type: ignore
         )
 
         # Get speaker diarization
-        diarize_segments = diarize_model(
-            audio, min_speakers=config.min_speakers, max_speakers=config.max_speakers
-        )
+        diarize_segments = diarize_model(audio)
         result = whisperx.assign_word_speakers(diarize_segments, result)
+
+        # keep only audios with 2 speakers
+        num_speakers = len(set([i["speaker"] for i in result["segments"]]))
+        if num_speakers != 2:
+            print(f"audio had {num_speakers} speakers, skipping ...")
+            continue
 
         # Get audio embeddings
         input_features = whisper_fe(
@@ -173,8 +227,16 @@ def process_audio_chunks(config: PreprocessingConfig):
         ).to(device)["input_features"]
         embeddings = embedding_model(input_features).last_hidden_state
 
+        print([(i["text"], i["speaker"]) for i in result["segments"]])
+
         utils.play_audio(waveform)
         breakpoint()
+
+        best_speaker = analyze_speakers_pronouns(result)
+
+        if best_speaker is None:
+            print("No obvious user speaker, skipping ...")
+            continue
 
         # Organize segments by speaker
         speaker_segments = {}
