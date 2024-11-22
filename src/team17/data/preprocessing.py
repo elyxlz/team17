@@ -1,4 +1,5 @@
 from team17 import utils
+import torch.utils.data as td
 
 SUPPRESS = True
 
@@ -56,6 +57,8 @@ class AudioChunkIterableDataset(IterableDataset):
         self.target_sample_rate = target_sample_rate
         self.chunk_frames = chunk_frames
         self.silence_threshold = silence_threshold
+        self.data_step = 0
+
         self.file_list = self._find_audio_files(input_path)
         random.seed(seed)
         random.shuffle(self.file_list)
@@ -75,8 +78,22 @@ class AudioChunkIterableDataset(IterableDataset):
         return file_list
 
     def __iter__(self):
-        for file_path in self.file_list:
+        worker_info = td.get_worker_info()
+        worker_id = worker_info.id if worker_info else 0
+        num_workers = worker_info.num_workers if worker_info else 1
+
+        stride = num_workers * int(os.getenv("WORLD_SIZE", 1))
+        offset = int(os.getenv("RANK", 0)) * num_workers + worker_id
+
+        while True:
             try:
+                self.data_step += stride
+                idx = offset + self.data_step
+
+                if idx > len(self.file_list):
+                    break
+
+                file_path = self.file_list[idx]
                 waveform, sample_rate = torchaudio.load(file_path)
                 print(waveform.sum().item(), file_path)
 
