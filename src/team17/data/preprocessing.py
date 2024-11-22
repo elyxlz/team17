@@ -15,10 +15,15 @@ with utils.SuppressLogger(SUPPRESS):
     import transformers
     import whisperx
     from torch.utils.data import IterableDataset
+    import torch
 
     from team17.whisper_encoder import ModifiedWhisperEncoder
 
 dotenv.load_dotenv()
+
+
+torch.backends.cuda.matmul.allow_tf32 = True
+torch.backends.cudnn.allow_tf32 = True
 
 
 class PreprocessingConfig(pyds.BaseSettings):
