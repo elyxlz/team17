@@ -1,4 +1,10 @@
 [project]
+name = "team17"
+version = "0.1.1"
+description = "Add your description here"
+readme = "README.md"
+authors = [{ name = "elyx", email = "elio@pascarelli.com" }]
+requires-python = ">=3.9"
 dependencies = [
   "torch>=2.4.1",
   "youtube-search-python>=1.6.6",
@@ -19,13 +25,9 @@ dependencies = [
   "soundfile>=0.12.1",
   "gradio>=3.36.1",
   "whisperx @ git+https://github.com/federicotorrielli/BetterWhisperX",
+  "fastapi[standard]>=0.115.5",
+  "python-multipart>=0.0.12",
 ]
-name = "team17"
-version = "0.1.0"
-description = "Add your description here"
-readme = "README.md"
-authors = [{ name = "elyx", email = "elio@pascarelli.com" }]
-requires-python = ">=3.9"
 
 [tool.hatch.metadata]
 allow-direct-references = true

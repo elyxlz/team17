@@ -1,0 +1,3 @@
+# [submodule "server/submodules/fish-speech"]
+# 	path = server/submodules/fish-speech
+# 	url = https://github.com/EndlessReform/fish-speech.rs
