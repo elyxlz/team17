@@ -181,7 +181,7 @@ def process_audio_chunks(config: PreprocessingConfig):
         config.transcription_model,
         device="cuda" if config.use_cuda else "cpu",
         compute_type="float32" if not config.use_cuda else config.compute_type,
-        asr_options={"multilingual": False, "hotwords": []},
+        # asr_options={"multilingual": False, "hotwords": []},
         language="en",
     )
     diarize_model = whisperx.DiarizationPipeline(
