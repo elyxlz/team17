@@ -198,7 +198,11 @@ def process_audio_chunks(config: PreprocessingConfig):
         return int(time * 50)
 
     while True:
-        waveform, filename = next(dl)
+        try:
+            waveform, filename = next(dl)
+        except StopIteration:
+            break
+
         audio = waveform.squeeze().numpy()
 
         # Get transcription and alignment
