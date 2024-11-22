@@ -10,7 +10,7 @@ import pydantic_settings as pyds
 import torch
 import torch.nn.functional as F
 import torchaudio
-from torch.utils.data import IterableDataset
+from torch.utils.data import Dataset
 
 SUPPRESS = True
 
