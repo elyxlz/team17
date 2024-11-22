@@ -1,19 +1,11 @@
+import logging
 import os
 import subprocess
+import sys
 import tempfile
 
 import soundfile as sf
 import torch
-
-import sys
-import contextlib
-
-
-import os
-import sys
-import logging
-import contextlib
-from io import StringIO
 
 
 class SuppressLogger:
