@@ -299,10 +299,10 @@ def process_audio_chunks(config: PreprocessingConfig):
         #         end_idx = i
 
         # Only use segments between start_idx and end_idx
-        segments = segments[start_idx : last_non_user_idx - 1]
+        cropped_segments = segments[start_idx:last_non_user_idx]
 
         # Check again that audio still has 2 speakers
-        num_speakers = get_num_speakers(segments)
+        num_speakers = get_num_speakers(cropped_segments)
         if num_speakers != 2:
             print("2. Only one speaker skipping ... ")
             continue
@@ -324,7 +324,7 @@ def process_audio_chunks(config: PreprocessingConfig):
             dim=1,
         )
 
-        for segment in segments:
+        for segment in cropped_segments:
             start_time = segment["start"]
             end_time = segment["end"]
 
