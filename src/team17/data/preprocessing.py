@@ -63,8 +63,12 @@ class AudioChunkIterableDataset(IterableDataset):
                     self.file_list.append(os.path.join(root, file))
 
     def _is_silent(self, waveform: torch.Tensor) -> bool:
-        rms = torch.sqrt(torch.mean(waveform**2))
-        return rms.item() < self.silence_threshold
+        # Calculate RMS for each sample
+        rms = torch.sqrt(torch.mean(waveform**2, dim=0))
+        # Count samples below silence threshold
+        silent_samples = torch.sum(rms < self.silence_threshold)
+        # Consider silent if 90% or more samples are below threshold
+        return (silent_samples.item() / rms.shape[0]) >= 0.9
 
     def __iter__(self):
         for file_path in self.file_list:
