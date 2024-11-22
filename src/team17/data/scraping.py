@@ -14,7 +14,7 @@ class ScrapingConfig(pyds.BaseSettings):
     input_file: str = "./data/urls.txt"
     output_path: str = "./data/chunks"
     chunk_duration: int = 20
-    max_workers: int = 64
+    max_workers: int = 16
     format: str = "bestaudio[ext=m4a]/best[ext=mp4]/bestaudio/best"
 
 
