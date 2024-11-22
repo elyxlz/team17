@@ -54,6 +54,8 @@ class AudioChunkIterableDataset(IterableDataset):
         random.shuffle(self.file_list)
         self.file_list = list(set(self.file_list))
 
+        print(f"FOUND {len(self.file_list)} files")
+
     def _find_audio_files(self, directory):
         file_list = []
         for root, _, files in os.walk(directory):
