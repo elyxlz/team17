@@ -1,4 +1,4 @@
 from team17.data.preprocessing import PreprocessingConfig, process_audio_chunks
 
-config = PreprocessingConfig(chunk_frames=16_000 * 10)
+config = PreprocessingConfig(chunk_frames=16_000 * 30)
 process_audio_chunks(config)
