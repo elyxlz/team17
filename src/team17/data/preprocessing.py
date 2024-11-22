@@ -252,7 +252,7 @@ def process_audio_chunks(config: PreprocessingConfig):
             device,  # type: ignore
         )
 
-        diarize_segments = diarize_model(audio)
+        diarize_segments = diarize_model(audio, num_speakers=2)
         result = whisperx.assign_word_speakers(diarize_segments, result)
 
         # make sure all segments have a speaker
