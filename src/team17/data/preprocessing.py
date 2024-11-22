@@ -49,18 +49,21 @@ class AudioChunkIterableDataset(IterableDataset):
         self.target_sample_rate = target_sample_rate
         self.chunk_frames = chunk_frames
         self.silence_threshold = silence_threshold
-        self.file_list = []
-        self._find_audio_files(input_path)
+        self.file_list = self._find_audio_files(input_path)
         random.seed(seed)
         random.shuffle(self.file_list)
+        self.file_list = list(set(self.file_list))
 
     def _find_audio_files(self, directory):
+        file_list = []
         for root, _, files in os.walk(directory):
             for file in files:
                 if file.lower().endswith(
                     (".mp3", ".wav", ".flac", ".ogg", ".m4a", ".mp4", ".webm")
                 ):
-                    self.file_list.append(os.path.join(root, file))
+                    file_list.append(os.path.join(root, file))
+
+        return file_list
 
     def _is_silent(self, waveform: torch.Tensor) -> bool:
         # Calculate RMS for each sample
