@@ -6,7 +6,6 @@ with utils.SuppressLogger(SUPPRESS):
     import os
     import random
     from concurrent.futures import ThreadPoolExecutor
-
     import dotenv
     import numpy as np
     import pydantic_settings as pyds
@@ -232,7 +231,7 @@ def process_audio_chunks(config: PreprocessingConfig):
 
         num_speakers = len(set([i["speaker"] for i in result["segments"]]))
         if num_speakers != 2:
-            print("Only one speaker skipping ... ")
+            print("1: Only one speaker skipping ... ")
             continue
 
         user_speaker = analyze_speakers_pronouns(result)[0]
@@ -256,7 +255,9 @@ def process_audio_chunks(config: PreprocessingConfig):
         # after making user speaker first, check again that audio still has 2 speakers
         num_speakers = len(set([i["speaker"] for i in segments]))
         if num_speakers != 2:
-            print("Only one speaker skipping ... ")
+            utils.play_audio(waveform[0])
+            print([(i["text"], i["speaker"]) for i in segments])
+            print("2. Only one speaker skipping ... ")
             continue
 
         input_features = whisper_fe(
