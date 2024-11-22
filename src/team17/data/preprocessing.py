@@ -1,6 +1,6 @@
 from team17 import utils
 
-SUPPRESS = True
+SUPPRESS = False
 
 with utils.SuppressLogger(SUPPRESS):
     import os
