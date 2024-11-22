@@ -1,4 +1,5 @@
 from team17 import utils
+from tqdm import tqdm
 import torch.utils.data as td
 import os
 import random
@@ -42,7 +43,7 @@ def _is_silent(waveform: torch.Tensor, thresh: float) -> bool:
     return (silent_samples.item() / rms.shape[0]) >= 0.9
 
 
-class AudioChunkIterableDataset(IterableDataset):
+class AudioChunkDataset(Dataset):
     def __init__(
         self,
         input_path: str,
@@ -55,13 +56,10 @@ class AudioChunkIterableDataset(IterableDataset):
         self.target_sample_rate = target_sample_rate
         self.chunk_frames = chunk_frames
         self.silence_threshold = silence_threshold
-        self.data_step = 0
-
         self.file_list = self._find_audio_files(input_path)
         random.seed(seed)
         random.shuffle(self.file_list)
         self.file_list = list(set(self.file_list))
-
         print(f"FOUND {len(self.file_list)} raw files")
 
     def _find_audio_files(self, directory):
@@ -72,60 +70,50 @@ class AudioChunkIterableDataset(IterableDataset):
                     (".mp3", ".wav", ".flac", ".ogg", ".m4a", ".mp4", ".webm")
                 ):
                     file_list.append(os.path.join(root, file))
-
         return file_list
 
-    def __iter__(self):
-        worker_info = td.get_worker_info()
-        worker_id = worker_info.id if worker_info else 0
-        num_workers = worker_info.num_workers if worker_info else 1
+    def __len__(self):
+        return len(self.file_list)
 
-        stride = num_workers * int(os.getenv("WORLD_SIZE", 1))
-        offset = int(os.getenv("RANK", 0)) * num_workers + worker_id
+    def __getitem__(self, idx):
+        try:
+            file_path = self.file_list[idx]
 
-        while True:
-            try:
-                self.data_step += stride
-                idx = offset + self.data_step
+            # Load audio
+            waveform, sample_rate = torchaudio.load(file_path)
 
-                if idx > len(self.file_list):
-                    break
+            # Resample if needed
+            if sample_rate != self.target_sample_rate:
+                resampler = torchaudio.transforms.Resample(
+                    sample_rate, self.target_sample_rate
+                )
+                waveform = resampler(waveform)
 
-                file_path = self.file_list[idx]
-                waveform, sample_rate = torchaudio.load(file_path)
+            # Convert to mono if needed
+            if waveform.shape[0] > 1:
+                waveform = torch.mean(waveform, dim=0, keepdim=True)
 
-                if sample_rate != self.target_sample_rate:
-                    resampler = torchaudio.transforms.Resample(
-                        sample_rate, self.target_sample_rate
-                    )
-                    waveform = resampler(waveform)
+            # Skip if audio is silent
+            if _is_silent(waveform, thresh=self.silence_threshold):
+                return None
 
-                # Convert to mono if needed
-                if waveform.shape[0] > 1:
-                    waveform = torch.mean(waveform, dim=0, keepdim=True)
+            # Pad or cut to chunk_frames
+            if waveform.shape[1] < self.chunk_frames:
+                waveform = F.pad(waveform, (0, self.chunk_frames - waveform.shape[1]))
+            elif waveform.shape[1] > self.chunk_frames:
+                waveform = waveform[:, : self.chunk_frames]
 
-                # Skip if audio is silent
-                if _is_silent(waveform, thresh=self.silence_threshold):
-                    continue
+            # Check duration
+            duration = waveform.shape[1] / self.target_sample_rate
+            if duration > 30:
+                print(f"Duration above 30 seconds for {file_path}, skipping")
+                return None
 
-                # Pad or cut to chunk_frames
-                if waveform.shape[1] < self.chunk_frames:
-                    waveform = F.pad(
-                        waveform, (0, self.chunk_frames - waveform.shape[1])
-                    )
-                elif waveform.shape[1] > self.chunk_frames:
-                    waveform = waveform[:, : self.chunk_frames]
+            return dict(waveform=waveform, filename=os.path.basename(file_path))
 
-                duration = waveform.shape[1] / self.target_sample_rate
-                if duration > 30:
-                    print("DURATION ABOVE 30, skipping")
-                    continue
-
-                yield waveform, os.path.basename(file_path)
-
-            except Exception as e:
-                print(f"Error processing in dataset: {str(e)}")
-                continue
+        except Exception as e:
+            print(f"Error processing: {str(e)}")
+            return None
 
 
 def analyze_speakers_pronouns(transcript_data):
@@ -208,7 +196,7 @@ def process_audio_chunks(config: PreprocessingConfig):
     )
     embedding_model.to(device)  # type: ignore
 
-    dataset = AudioChunkIterableDataset(
+    dataset = AudioChunkDataset(
         config.input_path,
         target_sample_rate=config.sample_rate,
         chunk_frames=config.chunk_frames,
@@ -225,11 +213,9 @@ def process_audio_chunks(config: PreprocessingConfig):
     def time_to_idx(time):
         return int(time * 50)
 
-    while True:
-        try:
-            waveform, filename = next(dl)
-        except StopIteration:
-            break
+    for batch in tqdm(dl):
+        waveform = batch["waveform"]
+        filename = batch["filename"]
 
         audio = waveform.squeeze().numpy()
 
@@ -289,7 +275,7 @@ def process_audio_chunks(config: PreprocessingConfig):
                 end_idx = i
 
         # Only use segments between start_idx and end_idx
-        segments = result["segments"][start_idx:end_idx]
+        segments = result["segments"][start_idx:]  # end_idx]
 
         # Check again that audio still has 2 speakers
         num_speakers = len(set([i["speaker"] for i in segments]))
