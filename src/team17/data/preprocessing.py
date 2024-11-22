@@ -95,7 +95,7 @@ class AudioChunkDataset(Dataset):
 
             # Skip if audio is silent
             if _is_silent(waveform, thresh=self.silence_threshold):
-                return [None]
+                return self.__getitem__(idx + 1)
 
             # Pad or cut to chunk_frames
             if waveform.shape[1] < self.chunk_frames:
@@ -107,13 +107,13 @@ class AudioChunkDataset(Dataset):
             duration = waveform.shape[1] / self.target_sample_rate
             if duration > 30:
                 print(f"Duration above 30 seconds for {file_path}, skipping")
-                return [None]
+                return self.__getitem__(idx + 1)
 
             return dict(waveform=waveform, filename=os.path.basename(file_path))
 
         except Exception as e:
             print(f"Error processing: {str(e)}")
-            return [None]
+            return self.__getitem__(idx + 1)
 
 
 def analyze_speakers_pronouns(transcript_data):
@@ -219,9 +219,6 @@ def process_audio_chunks(config: PreprocessingConfig):
         return int(time * 50)
 
     for batch in tqdm(dl):
-        if None in batch:
-            continue
-
         waveform = batch["waveform"]
         filename = batch["filename"]
 
@@ -304,9 +301,9 @@ def process_audio_chunks(config: PreprocessingConfig):
             continue
 
         # Verify that first speaker is user
-        if segments[0]["speaker"] != user_speaker:
-            print("3. Invalid speaker sequence, skipping ...")
-            continue
+        # if segments[0]["speaker"] != user_speaker: # TOOD:
+        #     print("3. Invalid speaker sequence, skipping ...")
+        #     continue
 
         input_features = whisper_fe(
             audio, sampling_rate=config.sample_rate, return_tensors="pt"
