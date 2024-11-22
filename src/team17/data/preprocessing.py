@@ -252,17 +252,30 @@ def process_audio_chunks(config: PreprocessingConfig):
         diarize_segments = diarize_model(audio)
         result = whisperx.assign_word_speakers(diarize_segments, result)
 
-        num_speakers = get_num_speakers(result["segments"])
-        if num_speakers != 2:
-            print("1: Only one speaker skipping ... ")
+        # make sure all segments have a speaker
+        no_speaker = False
+        for segment in result["segments"]:
+            if segment.get("speaker") == None:
+                no_speaker = True
+
+        if no_speaker:
+            print("a segment has no speaker")
             continue
 
+        # make sure 2 speakers
+        num_speakers = get_num_speakers(result["segments"])
+        if num_speakers != 2:
+            print(f"1: {num_speakers} speaker skipping ... ")
+            continue
+
+        # make sure identifiable user speaker
         user_speaker = analyze_speakers_pronouns(result)[0]
         if user_speaker is None:
             print("Cant find user speaker, skipping ... ")
             continue
 
         # Process segments
+        segments = result["segments"]
         sequence = []
         audio_emb_indices = []
 
@@ -283,7 +296,6 @@ def process_audio_chunks(config: PreprocessingConfig):
         #         end_idx = i
 
         # Only use segments between start_idx and end_idx
-        segments = result["segments"]  # [start_idx:end_idx]
 
         # Check again that audio still has 2 speakers
         num_speakers = get_num_speakers(segments)
