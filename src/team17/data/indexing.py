@@ -12,7 +12,7 @@ from youtubesearchpython import VideosSearch
 class IndexConfig(pyds.BaseSettings):
     input_file: str = "./data/searches.txt"
     output_file: str = "./data/urls.txt"
-    min_duration: int = 30 * 60
+    min_duration: int = 60
     max_retries: int = 3
     search_limit: int = 30
     retry_delay: float = 2.0
