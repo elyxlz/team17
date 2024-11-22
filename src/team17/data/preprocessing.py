@@ -228,26 +228,16 @@ def process_audio_chunks(config: PreprocessingConfig):
         embeddings = embedding_model(input_features).last_hidden_state
 
         print([(i["text"], i["speaker"]) for i in result["segments"]])
+        best_speaker = analyze_speakers_pronouns(result)[0]
+        print(best_speaker)
 
         utils.play_audio(waveform)
-        breakpoint()
-
-        best_speaker = analyze_speakers_pronouns(result)
 
         if best_speaker is None:
             print("No obvious user speaker, skipping ...")
             continue
 
-        # Organize segments by speaker
-        speaker_segments = {}
-        for segment in result["segments"]:
-            speaker = segment["speaker"]
-            if speaker not in speaker_segments:
-                speaker_segments[speaker] = {"transcripts": [], "timestamps": []}
-            speaker_segments[speaker]["transcripts"].append(segment["text"])
-            speaker_segments[speaker]["timestamps"].append(
-                [segment["start"], segment["end"]]
-            )
+        breakpoint()
 
         save_executor.submit(
             _save_processed_data,
