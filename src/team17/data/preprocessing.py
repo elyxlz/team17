@@ -7,15 +7,16 @@ with utils.SuppressLogger(SUPPRESS):
     import os
     import random
     from concurrent.futures import ThreadPoolExecutor
+
     import dotenv
     import numpy as np
     import pydantic_settings as pyds
+    import torch
     import torch.nn.functional as F
     import torchaudio
     import transformers
     import whisperx
     from torch.utils.data import IterableDataset
-    import torch
 
     from team17.whisper_encoder import ModifiedWhisperEncoder
 
