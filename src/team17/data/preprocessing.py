@@ -105,9 +105,9 @@ class AudioChunkDataset(Dataset):
 
             # Check duration
             duration = waveform.shape[1] / self.target_sample_rate
-            if duration > 30:
-                print(f"Duration above 30 seconds for {file_path}, skipping")
-                return self.__getitem__(idx + 1)
+            # if duration > 30:
+            #     print(f"Duration above 30 seconds for {file_path}, skipping")
+            #     return self.__getitem__(idx + 1)
 
             return dict(waveform=waveform, filename=os.path.basename(file_path))
 
