@@ -313,10 +313,15 @@ def process_audio_chunks(config: PreprocessingConfig):
         input_features = whisper_fe(
             audio, sampling_rate=config.sample_rate, return_tensors="pt"
         ).to(device)["input_features"]
-        breakpoint()
-        embeddings = (
-            embedding_model(input_features).last_hidden_state.cpu().to(torch.float16)
+        chunks = torch.split(input_features, 3000, dim=-1)
+        embeddings = torch.stack(
+            [
+                embedding_model(c).last_hidden_state.cpu().to(torch.float16)
+                for c in chunks
+            ],
+            dim=-1,
         )
+        breakpoint()
 
         for segment in segments:
             start_time = segment["start"]
