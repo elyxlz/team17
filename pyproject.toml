@@ -25,6 +25,8 @@ dependencies = [
   "soundfile>=0.12.1",
   "gradio>=3.36.1",
   "whisperx>=3.1.6",
+  "fastapi[standard]>=0.115.5",
+  "python-multipart>=0.0.12",
 ]
 
 [project.scripts]
