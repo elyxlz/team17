@@ -2,10 +2,6 @@ from team17 import utils
 
 SUPPRESS = False
 
-import torch
-
-torch.backends.cuda.matmul.allow_tf32 = True
-torch.backends.cudnn.allow_tf32 = True
 
 with utils.SuppressLogger(SUPPRESS):
     import os
@@ -167,6 +163,8 @@ def process_audio_chunks(config: PreprocessingConfig):
         os.makedirs(config.output_path)
 
     device = torch.device("cuda" if config.use_cuda else "cpu")
+
+    breakpoint()
 
     # Load models
     with utils.SuppressLogger(SUPPRESS):
