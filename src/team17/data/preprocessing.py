@@ -313,6 +313,7 @@ def process_audio_chunks(config: PreprocessingConfig):
         input_features = whisper_fe(
             audio, sampling_rate=config.sample_rate, return_tensors="pt"
         ).to(device)["input_features"]
+        breakpoint()
         embeddings = (
             embedding_model(input_features).last_hidden_state.cpu().to(torch.float16)
         )
