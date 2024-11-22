@@ -36,6 +36,12 @@ class PreprocessingConfig(pyds.BaseSettings):
     num_workers: int = 0
 
 
+def _is_silent(waveform: torch.Tensor, thresh: float) -> bool:
+    rms = torch.sqrt(torch.mean(waveform**2, dim=0))
+    silent_samples = torch.sum(rms < thresh)
+    return (silent_samples.item() / rms.shape[0]) >= 0.9
+
+
 class AudioChunkIterableDataset(IterableDataset):
     def __init__(
         self,
@@ -67,14 +73,6 @@ class AudioChunkIterableDataset(IterableDataset):
 
         return file_list
 
-    def _is_silent(self, waveform: torch.Tensor) -> bool:
-        # Calculate RMS for each sample
-        rms = torch.sqrt(torch.mean(waveform**2, dim=0))
-        # Count samples below silence threshold
-        silent_samples = torch.sum(rms < self.silence_threshold)
-        # Consider silent if 90% or more samples are below threshold
-        return (silent_samples.item() / rms.shape[0]) >= 0.9
-
     def __iter__(self):
         for file_path in self.file_list:
             try:
@@ -92,7 +90,7 @@ class AudioChunkIterableDataset(IterableDataset):
                     waveform = torch.mean(waveform, dim=0, keepdim=True)
 
                 # Skip if audio is silent
-                if self._is_silent(waveform):
+                if _is_silent(waveform, thresh=self.silence_threshold):
                     continue
 
                 # Pad or cut to chunk_frames
