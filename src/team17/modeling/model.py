@@ -10,6 +10,9 @@ import transformers.activations
 import transformers.modeling_outputs
 import transformers.models
 from transformers.models.whisper import modeling_whisper as whisper
+
+# We must use relative import in this directory to allow uploading to HF Hub
+# Even "from . import X" pattern doesn't work (undocumented and unclear why)
 from team17.modeling.config import LossConfig, LossFunction, UltravoxConfig
 
 
@@ -39,8 +42,16 @@ class UltravoxModel(transformers.LlamaPreTrainedModel):
         self.keep_params: Set[str] = set()
         self.vocab_size = config.vocab_size
         print(config)
+        self.audio_tower = self._create_audio_tower(config)
         self.multi_modal_projector = self._create_multi_modal_projector(config)
         self.language_model = self._create_language_model(config)
+
+        # Determine no_split_modules dynamically to use with FSDP auto_wrap policy.
+        # FSDP throws an error if some of the layer types are not found in the model.
+        # This would be something like ["LlamaDecoderLayer", "WhisperEncoderLayer"]
+        self._no_split_modules = (self.language_model._no_split_modules or []) + (
+            self.audio_tower._no_split_modules or []
+        )
 
         self.loss_config = LossConfig()
         self.post_init()
@@ -130,13 +141,12 @@ class UltravoxModel(transformers.LlamaPreTrainedModel):
     def forward(
         self,
         input_ids: torch.Tensor,
-        audio_values: Optional[
-            torch.FloatTensor
-        ] = None,  # FOR THIS DEFINITION THIS IS THE WHISPER EMBEDDINGS
+        audio_values: Optional[torch.FloatTensor] = None,
         inputs_embeds: Optional[torch.FloatTensor] = None,
         labels: Optional[torch.Tensor] = None,
         attention_mask: Optional[torch.Tensor] = None,
         audio_token_start_idx: Optional[torch.Tensor] = None,
+        audio_len: Optional[torch.Tensor] = None,
         audio_token_len: Optional[torch.Tensor] = None,
         past_key_values: Optional[Union[Tuple, transformers.cache_utils.Cache]] = None,
         # the alt_* fields are needed for KL divergence loss
@@ -168,7 +178,6 @@ class UltravoxModel(transformers.LlamaPreTrainedModel):
             # B x T  ->  B x T x D
             inputs_embeds = self.get_input_embeddings().forward(input_ids)
 
-        assert audio_values is not None
         if audio_values is not None:
             assert (
                 audio_token_start_idx is not None and audio_token_len is not None
@@ -177,11 +186,14 @@ class UltravoxModel(transformers.LlamaPreTrainedModel):
                 len(audio_token_start_idx) == len(audio_token_len) == len(audio_values)
             ), "audio_token_start_idx, audio_token_len, and audio_values must have the same batch size."
 
-            audio_values = audio_values.to(next(self.parameters()).dtype)  # type: ignore
-            assert audio_values is not None
-
             # B x A/3200 x D
-            audio_embeds = self.multi_modal_projector.forward(audio_values)
+            audio_tower_output = self.audio_tower.forward(
+                audio_values.to(self.audio_tower.dtype),
+                audio_len=audio_len,
+            ).last_hidden_state
+            audio_tower_output = audio_tower_output.to(inputs_embeds.dtype)
+
+            audio_embeds = self.multi_modal_projector.forward(audio_tower_output)
 
             # combine audio and text embeddings
             for i, (audio, start, length) in enumerate(
@@ -223,6 +235,7 @@ class UltravoxModel(transformers.LlamaPreTrainedModel):
         audio_values: Optional[torch.FloatTensor] = None,
         audio_token_start_idx: Optional[torch.Tensor] = None,
         audio_token_len: Optional[torch.Tensor] = None,
+        audio_len: Optional[torch.Tensor] = None,
         past_key_values: Optional[Union[Tuple, transformers.cache_utils.Cache]] = None,
         attention_mask: Optional[torch.Tensor] = None,
         inputs_embeds: Optional[torch.Tensor] = None,
@@ -251,6 +264,7 @@ class UltravoxModel(transformers.LlamaPreTrainedModel):
                 audio_token_start_idx - prefill_start_idx
             )
             model_input["audio_token_len"] = audio_token_len
+            model_input["audio_len"] = audio_len
 
         return model_input
 
@@ -261,6 +275,62 @@ class UltravoxModel(transformers.LlamaPreTrainedModel):
         projector = UltravoxProjector(config)
         projector.to(config.torch_dtype)
         return projector
+
+    @classmethod
+    def _create_audio_tower(
+        cls, config: UltravoxConfig
+    ) -> Union[transformers.Wav2Vec2Model, "ModifiedWhisperEncoder"]:
+        if config.audio_model_id is not None:
+            if "whisper" in config.audio_model_id is not None:
+                audio_tower = ModifiedWhisperEncoder.from_pretrained(
+                    config.audio_model_id, torch_dtype=config.torch_dtype
+                )
+                audio_tower.init_latency_mask(
+                    config.audio_latency_block_size, dtype=config.torch_dtype
+                )
+            else:
+                assert (
+                    config.audio_latency_block_size
+                    not in (
+                        None,
+                        0,
+                    )
+                ), "only whisper audio tower supports audio latency masking, got non-zero value for 'audio_latency_block_size'"
+                audio_tower = transformers.AutoModel.from_pretrained(
+                    config.audio_model_id, torch_dtype=config.torch_dtype
+                )
+        else:
+            if "whisper" in config.audio_config._name_or_path:
+                audio_tower = ModifiedWhisperEncoder(config.audio_config)
+                audio_tower.init_latency_mask(
+                    config.audio_latency_block_size, dtype=config.torch_dtype
+                )
+            else:
+                assert (
+                    config.audio_latency_block_size
+                    not in (
+                        None,
+                        0,
+                    )
+                ), "only whisper audio tower supports audio latency masking, got non-zero value for 'audio_latency_block_size'"
+                with transformers.modeling_utils.no_init_weights():
+                    # we only ever use from_config if the weights are retrained, hence initializing is not
+                    # required. This makes the model quite creation faster since init on CPU is quite slow.
+                    audio_tower = transformers.AutoModel.from_config(
+                        config.audio_config
+                    )
+
+        if isinstance(
+            audio_tower,
+            (transformers.Wav2Vec2BertModel, transformers.WhisperModel),
+        ):
+            # For these models we only need the encoder part
+            # Wav2Vec2BertModel -> Wav2Vec2BertEncoder
+            # WhisperModel -> WhisperEncoder
+            audio_tower = audio_tower.encoder
+
+        audio_tower = apply_lora(audio_tower, config.audio_model_lora_config)
+        return audio_tower
 
     @classmethod
     def _create_language_model(
@@ -285,8 +355,89 @@ class UltravoxModel(transformers.LlamaPreTrainedModel):
         language_model = apply_lora(language_model, config.text_model_lora_config)
         return language_model
 
+    def merge_and_unload(self):
+        if isinstance(self.language_model, peft.PeftModel):
+            self.language_model = self.language_model.merge_and_unload()
+            # no need to download base language model weights anymore, so we can remove the id
+            self.config.text_model_id = None
+            self.keep_params.update(
+                set(
+                    [
+                        f"language_model.{name}"
+                        for name, _ in self.language_model.named_parameters()
+                    ]
+                )
+            )
+
+        if isinstance(self.audio_tower, peft.PeftModel):
+            self.audio_tower = self.audio_tower.merge_and_unload()
+            # no need to download base audio model weights anymore, so we can remove the id
+            self.config.audio_model_id = None
+            self.keep_params.update(
+                set(
+                    [
+                        f"audio_tower.{name}"
+                        for name, _ in self.audio_tower.named_parameters()
+                    ]
+                )
+            )
+
+        for param in ["text_model_lora_config", "audio_model_lora_config"]:
+            if hasattr(self.config, param):
+                delattr(self.config, param)
+
+    def push_to_hub(self, *args, **kwargs):
+        self.merge_and_unload()
+        self.to(self.language_model.dtype)
+        return super().push_to_hub(*args, **kwargs)
+
+    def save_pretrained(
+        self, *args, state_dict: Optional[Dict[str, Any]] = None, **kwargs
+    ):
+        if state_dict is None:
+            state_dict = super().state_dict()
+
+        named_params = dict(self.named_parameters())
+
+        state_dict = {
+            k: v
+            for k, v in state_dict.items()
+            if k in self.keep_params
+            or (k in named_params and named_params[k].requires_grad)
+        }
+
+        super().save_pretrained(*args, state_dict=state_dict, **kwargs)
+
     def _pre_load_state_dict_hook(self, state_dict: Dict[str, Any], *args, **kwargs):
         self.keep_params.update(set(state_dict.keys()))
+
+    def print_trainable_parameters(self):
+        """
+        Prints the number of trainable parameters in the model (reuses Peft model's method)
+        """
+        count_params = peft.peft_model.PeftModel.get_nb_trainable_parameters
+
+        trainable_params, all_param = count_params(self)
+
+        logging.info(
+            f"trainable params: {trainable_params:,d} || all params: {all_param:,d}"
+            f" || trainable%: {100 * trainable_params / all_param:.1f}%"
+        )
+
+        lm_trainable_params, lm_all_params = count_params(self.language_model)
+        audio_trainable_params, audio_all_params = count_params(self.audio_tower)
+
+        projector_trainable_params = (
+            trainable_params - lm_trainable_params - audio_trainable_params
+        )
+        projector_all_params = all_param - lm_all_params - audio_all_params
+
+        logging.info(
+            f"Trainable%:   "
+            f" LLM: {100 * lm_trainable_params / lm_all_params:.1f}%"
+            f" || Audio Encoder: {100 * audio_trainable_params / audio_all_params:.1f}%"
+            f" || Projector: {100 * projector_trainable_params / projector_all_params:.1f}%"
+        )
 
 
 def is_cache_empty(
@@ -566,5 +717,11 @@ class ModifiedWhisperEncoder(
             attentions=all_attentions,
         )
 
+
+UltravoxConfig.register_for_auto_class()
+UltravoxModel.register_for_auto_class()
+
+transformers.AutoConfig.register("ultravox", UltravoxConfig)
+transformers.AutoModel.register(UltravoxConfig, UltravoxModel)
 
 transformers.activations.ACT2FN["swiglu"] = SwiGLU

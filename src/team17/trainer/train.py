@@ -1,4 +1,5 @@
 import datetime
+import dotenv
 import typing
 
 import peft
@@ -14,6 +15,8 @@ from team17.trainer import utils
 from team17.trainer.config import MyUltravoxTrainConfig
 from team17.trainer.dataset import MyUltravoxDataset
 from team17.trainer.test import test
+
+dotenv.load_dotenv()
 
 __all__ = ["train"]
 
@@ -48,6 +51,7 @@ def init_train_state(config: MyUltravoxTrainConfig) -> TrainState:
             config.ultravox_pretrained_path,
             **config.ultravox_kwargs,
         )
+        # model = UltravoxModel(UltravoxConfig(**config.ultravox_kwargs))
     else:
         model = UltravoxModel(UltravoxConfig(**config.ultravox_kwargs))
 
@@ -129,33 +133,56 @@ def save_train_state(state: TrainState, config: MyUltravoxTrainConfig) -> None:
 
 def prepare_batch(
     batch: dict, device: torch.device
-) -> tuple[torch.Tensor, torch.Tensor]:
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    """Prepare batch by moving tensors to device"""
     input_ids = batch["input_ids"].to(device)
-    audio_emb = batch["audio_emb"].to(device, torch.bfloat16)
-    return input_ids, audio_emb
+    audio_emb = batch["audio_emb"].to(device, dtype=torch.bfloat16)
+    audio_token_start_idx = batch["audio_token_start_idx"].to(device)
+    audio_token_len = batch["audio_token_len"].to(device)
+    return input_ids, audio_emb, audio_token_start_idx, audio_token_len
 
 
-# TODO: do tower shenanigans and stuff here
 def compute_loss(
-    ultravox: torch.nn.Module,
+    ultravox: UltravoxModel,
     input_ids: torch.Tensor,
-    audio_emb: torch.Tensor,
+    audio_values: torch.Tensor,
+    audio_token_start_idx: torch.Tensor,
+    audio_token_len: torch.Tensor,
 ) -> torch.Tensor:
-    loss = ultravox(
-        input_ids=input_ids,
-        audio_emb=audio_emb,
-    ).float()
-    return loss
+    """Compute loss for one training step"""
+    labels = input_ids[:, 1:].contiguous()
+    model_output = ultravox(
+        input_ids=input_ids[:, :-1],
+        labels=labels,
+        audio_values=audio_values,
+        audio_token_start_idx=audio_token_start_idx,
+        audio_token_len=audio_token_len,
+    )
+    breakpoint()
+    return model_output
 
 
 def train_step(
     state: TrainState, batch: dict, config: MyUltravoxTrainConfig
 ) -> tuple[TrainState, float, float]:
-    device = utils.get_device()
+    """Execute one training step"""
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    input_ids, audio_emb = prepare_batch(batch, device)
-    loss = compute_loss(state.model, input_ids=input_ids, audio_emb=audio_emb)
+    # Prepare batch
+    input_ids, audio_emb, audio_token_start_idx, audio_token_len = prepare_batch(
+        batch, device
+    )
 
+    # Compute loss
+    loss = compute_loss(
+        state.model,  # type: ignore
+        input_ids=input_ids,
+        audio_values=audio_emb,  # Fixed variable name from audio_value to audio_values
+        audio_token_start_idx=audio_token_start_idx,
+        audio_token_len=audio_token_len,
+    )
+
+    # Optimization step
     state.optimizer.zero_grad()
     loss.backward()
     grad_norm = torch.nn.utils.clip_grad_norm_(state.model.parameters(), 0.3)
