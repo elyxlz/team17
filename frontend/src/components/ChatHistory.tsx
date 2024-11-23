@@ -26,7 +26,7 @@ export function ChatHistory({ history }: ChatHistoryProps) {
     <div className="w-full flex justify-center pb-4 px-4 bg-gradient-to-t from-white via-white to-transparent sticky top-[600px]">
       <div className="w-full max-w-[750px]">
         <h3 className="align-left text-xl font-semibold text-gray-800 mb-4 text-left">Recent Conversation</h3>
-        <div className="bg-white rounded-lg shadow-sm p-4 border border-gray-200">
+        <div className="bg-white rounded-lg shadow-sm p-4 border border-gray-200 mb-3">
           <div className="flex justify-between items-center mb-2">
             <div className="text-xs text-gray-500">
               {lastConversation.startTime}
@@ -37,20 +37,18 @@ export function ChatHistory({ history }: ChatHistoryProps) {
           </div>
           <div className="text-gray-800 text-left">
             <div className="mb-2">
-              <span className="font-semibold">You:</span> {firstMessage.transcription}
+              {/* Show the message in a readable way */}
+              {/* With any " or ' */}
+              {/* <span className="font-semibold">You:</span> {firstMessage.transcription.replace(/^\s+|\s+$/g, '').replace(/["']/g, '')} */}
             </div>
             <div className="mb-2">
-              <span className="font-semibold">Therapist:</span> {firstMessage.response.text}
+              <span className="font-semibold">Therapist:</span> {firstMessage.response.text.replace(/^\s+|\s+$/g, '').replace(/["']/g, '')}
             </div>
-            Heyyy
-            {firstMessage.response.audioUrl}
             {firstMessage.response.audioUrl && (
               <div className="mt-2">
                 <audio controls className="w-full">
                   <source src={firstMessage.response.audioUrl} type="audio/wav" />
-                  {/* <source src={firstMessage.response.audioUrl} type="audio/wav" /> */}
                 </audio>
-                {firstMessage.response.audioUrl}
               </div>
             )}
           </div>

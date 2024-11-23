@@ -8,6 +8,7 @@ import { AnimatedText } from './AnimatedText';
 import { AnimatedBlob } from './AnimatedBlob';
 import { Footer } from './Footer';
 import { processMessageWithOpenAI, getTranscription } from '../utils/openai';
+import { processMessageWithLocal } from '../utils/local';
 import { ConfigError } from '../utils/config';
 
 interface HistoryItem {
@@ -29,7 +30,7 @@ interface ChatSession {
 
 export function VoiceAssistant({ showLock = true }: { showLock?: boolean }) {
   const navigate = useNavigate();
-  const [isProcessing, setIsProcessing] = useState(false);
+  const [currentState, setCurrentState] = useState<"idle" | "listening" | "thinking" | "speaking">("idle");
   const [response, setResponse] = useState<AIResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [scrollY, setScrollY] = useState(0);
@@ -73,18 +74,19 @@ export function VoiceAssistant({ showLock = true }: { showLock?: boolean }) {
 
   const handleError = (message: string) => {
     setError(message);
-    setIsProcessing(false);
+    setCurrentState("idle");
   };
 
   const handleRecordingComplete = async (audioBlob: Blob) => {
     setError(null);
     setResponse(null);
-    setIsProcessing(true);
-
+    setCurrentState("thinking");
     try {
-      const transcription = await getTranscription(audioBlob);
-      const aiResponse = await processMessageWithOpenAI(audioBlob);
+      // const transcription = await getTranscription(audioBlob);
+      // const aiResponse = await processMessageWithOpenAI(audioBlob);
+      const aiResponse = await processMessageWithLocal(audioBlob);
       setResponse(aiResponse);
+      const transcription = "";
       handleNewMessage(transcription, aiResponse);
     } catch (error) {
       if (error instanceof ConfigError) {
@@ -93,7 +95,7 @@ export function VoiceAssistant({ showLock = true }: { showLock?: boolean }) {
         handleError(error as string);
       }
     } finally {
-      setIsProcessing(false);
+      setCurrentState("idle");
     }
   };
 
@@ -106,7 +108,7 @@ export function VoiceAssistant({ showLock = true }: { showLock?: boolean }) {
 
     // Get existing sessions or initialize empty array
     const savedSessions = localStorage.getItem('chatSessions');
-    let sessions: ChatSession[] = savedSessions ? JSON.parse(savedSessions) : [];
+    const sessions: ChatSession[] = savedSessions ? JSON.parse(savedSessions) : [];
 
     // Check if there's an active session for today
     const today = new Date().toISOString();
@@ -136,8 +138,15 @@ export function VoiceAssistant({ showLock = true }: { showLock?: boolean }) {
 
   return (
     <div className="App">
-      <AnimatedBlob scrollY={scrollY} />
-      <AnimatedText text={welcomeText} scrollY={scrollY} />
+        <AnimatedText text={welcomeText} scrollY={scrollY} />
+      <AnimatedBlob scrollY={scrollY} currentState={currentState}>
+        <VoiceButton 
+          onRecordingComplete={handleRecordingComplete} 
+          currentState={currentState}
+          setCurrentState={setCurrentState}
+          onError={handleError} 
+        />
+      </AnimatedBlob>
       
       {showLock && localStorage.getItem('isAuthenticated') && (
         <button 
@@ -153,18 +162,12 @@ export function VoiceAssistant({ showLock = true }: { showLock?: boolean }) {
           <ErrorMessage message={error} />
         )}
 
-        <ResponseDisplay
+        {/* <ResponseDisplay
           response={response}
           isVisible={!!response && !error}
-        />
+        /> */}
 
-        <div className="relative sticky top-[380px]">
-          <VoiceButton
-            onRecordingComplete={handleRecordingComplete}
-            isProcessing={isProcessing}
-            onError={handleError}
-          />
-        </div>
+        
 
         <div className="mt-4 text-center text-gray-500 text-sm sticky top-[550px]">
           Click the button and start speaking
@@ -172,7 +175,7 @@ export function VoiceAssistant({ showLock = true }: { showLock?: boolean }) {
 
         {history.length > 0 && <ChatHistory history={history} />}
 
-        <Footer />
+        <Footer scrollY={scrollY} />
       </div>
     </div>
   );

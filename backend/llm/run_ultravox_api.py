@@ -17,11 +17,28 @@ app = FastAPI(title="Text-to-Speech & Speech-to-Text API", version="1.0")
 
 logger.info("Initializing Ultravox Inference...")
 ultravox = UltravoxInference(
-    model_path="./submodules/ultravox/ultravox-v0_3-llama-3_2-1b",
+    model_path="./ultravox/ultravox-v0_3-llama-3_2-1b",
     conversation_mode=True,
     device="mps",
     data_type="float16",
 )
+
+# Compile ultravox.model
+# logger.info("Compiling Ultravox model...")
+# ultravox.model.compile(backend="onnxrt")
+# Not working on MPS with Inductor, or OpenXLA
+
+# print(torch._dynamo.list_backends())
+
+
+# logger.info("Quantizing Ultravox model...")
+# ultravox.model = torch.ao.quantization.quantize_dynamic(
+#     ultravox.model,  # the original model
+#     {torch.nn.Linear},  # a set of layers to dynamically quantize
+#     dtype=torch.qint8,  # the target dtype for quantized weights
+# )
+# Quantization gonna fail on MPS but you can fallback to CPU with PYTORCH_ENABLE_MPS_FALLBACK=1
+
 logger.info("Ultravox Inference initialized successfully.")
 
 
@@ -54,6 +71,14 @@ async def stt_endpoint_file(audio_file: UploadFile = File(...)):
             path=temp_file_path,
             prompt="<|audio|>",
         )
+        sample.add_past_messages(
+            [
+                {
+                    "role": "system",
+                    "content": "You are a compassionate and empathetic psychologist, focused on active listening and providing thoughtful, supportive responses to emotional needs.",
+                }
+            ]
+        )
 
         logger.info("Running inference on the audio sample.")
         voice_output = ultravox.infer(
@@ -77,7 +102,7 @@ def reset_ultravox():
     global ultravox
     logger.info("Resetting Ultravox Inference...")
     ultravox = UltravoxInference(
-        model_path="./submodules/ultravox/ultravox-v0_3-llama-3_2-1b",
+        model_path="./ultravox/ultravox-v0_3-llama-3_2-1b",
         conversation_mode=True,
         device="mps",
         data_type="float16",

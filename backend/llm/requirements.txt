@@ -1,0 +1,4 @@
+-e ultravox
+fastapi[standard]
+uvicorn
+python-multipart
