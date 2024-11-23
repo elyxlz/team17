@@ -11,7 +11,7 @@ import torchaudio
 from torch.utils.data import Dataset
 from tqdm import tqdm
 
-from team17 import utils
+from team17.data import utils
 
 SUPPRESS = True
 
@@ -19,7 +19,7 @@ with utils.SuppressLogger(SUPPRESS):
     import transformers
     import whisperx
 
-    from team17.whisper_encoder import ModifiedWhisperEncoder
+    from team17.modeling.whisper_encoder import ModifiedWhisperEncoder
 
 dotenv.load_dotenv()
 
