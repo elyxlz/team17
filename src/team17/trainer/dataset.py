@@ -1,4 +1,6 @@
 import os
+import transformers
+import dataclasses
 import json
 from typing import Dict, List, Optional, Any
 import numpy as np
@@ -60,7 +62,7 @@ class MyUltravoxDataset(Dataset):
         # Create voice sample
         return VoiceSample(
             messages=conv_data["messages"],
-            audio=audio,
+            audio=audio[0][0],
             sample_rate=conv_data["sample_rate"],
         )
 
@@ -70,6 +72,9 @@ class MyUltravoxDataset(Dataset):
     def __getitem__(self, idx: int) -> Dict[str, Any]:
         # Load the sample from .npz file
         sample = self._load_npz_as_voice_sample(self.samples[idx])
+
+        # TODO: only get first 2 messages cuz i dont think the processor can even do multiturn????
+        sample.messages = sample.messages[:2]
 
         # For inference, remove assistant message
         if self.inference_mode:
@@ -82,6 +87,7 @@ class MyUltravoxDataset(Dataset):
 
         # Process using UltravoxProcessor
         # Audio needs to be [C x M] where C=1 for mono
+        #
         audio = (
             np.expand_dims(sample.audio, axis=0) if sample.audio is not None else None
         )
@@ -143,6 +149,30 @@ def create_dataloaders(
     )
 
     return dataloader
+
+
+@dataclasses.dataclass
+class DataCollatorForSeq2SeqWithAudio(transformers.DataCollatorForSeq2Seq):
+    def __call__(self, features, *args, **kwargs):
+        audio_values = [f.pop("audio_values", None) for f in features]
+        input_ids_lens = torch.LongTensor([f["input_ids"].shape[-1] for f in features])
+        batch = super().__call__(features, *args, **kwargs)
+        # Pad the last dimension of all audio_values to the same length, with 0s on the right.
+        if audio_values and audio_values[0] is not None:
+            max_len = max([x.shape[-1] for x in audio_values])
+            batch["audio_values"] = torch.stack(
+                [
+                    torch.nn.functional.pad(x, (0, max_len - x.shape[-1]))
+                    for x in audio_values
+                ]
+            )
+            if self.tokenizer.padding_side == "left":
+                displacement = batch["input_ids"].shape[-1] - input_ids_lens
+                batch["audio_token_start_idx"] += displacement.to(
+                    batch["audio_token_start_idx"].device
+                )
+
+        return batch
 
 
 # Usage example:

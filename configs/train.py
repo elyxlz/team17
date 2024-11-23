@@ -11,11 +11,12 @@ config = MyUltravoxTrainConfig(
     seed=42,
     run_name="blabla",
     # Model path
-    ultravox_pretrained_path="i2xmortal/Llama-3.2-300M-untrained",
-    text_tokenizer_path="i2xmortal/Llama-3.2-300M-untrained",
+    # ultravox_pretrained_path="i2xmortal/Llama-3.2-300M-untrained",
+    # text_tokenizer_path="i2xmortal/Llama-3.2-300M-untrained",
     # ultravox_pretrained_path="fixie-ai/ultravox-v0_4_1-llama-3_1-8b",
-    # text_tokenizer_path="fixie-ai/ultravox-v0_4_1-llama-3_1-8b",
-    # ultravox_kwargs={"num_hidden_layers": 1, "hidden_size": 64, "vocab_size": 128},
+    ultravox_pretrained_path=None,
+    text_tokenizer_path="fixie-ai/ultravox-v0_4_1-llama-3_1-8b",
+    ultravox_kwargs={"num_hidden_layers": 1, "hidden_size": 64, "vocab_size": 128},
     # Text configuration
     text_max_length=128,
     # Audio configuration

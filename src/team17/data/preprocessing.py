@@ -22,7 +22,7 @@ class PreprocessingConfig(pyds.BaseSettings):
     compute_type: str = "float16"
     inner_batch_size: int = 8
     use_cuda: bool = torch.cuda.is_available()
-    chunk_frames: int = 16_000 * 60  # 60 seconds
+    chunk_frames: int = 16_000 * 30
     sample_rate: int = 16_000
     num_workers: int = 8
 

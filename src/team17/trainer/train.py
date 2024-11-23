@@ -1,4 +1,5 @@
 import datetime
+from enum import Enum
 import dataclasses
 import dotenv
 import typing
@@ -12,9 +13,10 @@ import transformers as tr
 import wandb
 
 from team17.modeling.model import UltravoxConfig, UltravoxModel
+from team17.modeling.processor import UltravoxProcessor
 from team17.trainer import utils
 from team17.trainer.config import MyUltravoxTrainConfig
-from team17.trainer.dataset import MyUltravoxDataset
+from team17.trainer.dataset import MyUltravoxDataset, DataCollatorForSeq2SeqWithAudio
 from team17.trainer.test import test
 
 dotenv.load_dotenv()
@@ -46,6 +48,21 @@ class LoraConfigSimplified:
     )
 
 
+class LossFunction(str, Enum):
+    CrossEntropy = "ce"
+    KL_Divergence = "kl"
+
+
+@dataclasses.dataclass
+class LossConfig:
+    loss_function: LossFunction = LossFunction.KL_Divergence
+    kl_temperature: float = 2.0
+
+    @property
+    def requires_alt_fields(self):
+        return self.loss_function == LossFunction.KL_Divergence
+
+
 def create_lora_config(
     config: MyUltravoxTrainConfig,
     modules: list[str],  # , to_save: list[str]
@@ -63,20 +80,20 @@ def create_lora_config(
 def init_train_state(config: MyUltravoxTrainConfig) -> TrainState:
     device = utils.get_device()
 
-    modules = [
-        n
-        for n, p in model.named_modules()
-        if isinstance(p, torch.nn.Linear)
-        and "head" not in n
-        # and "cond_net" not in n
-        and "emb" not in n
-    ]
-
-    lora_config = LoraConfigSimplified(
-        r=config.lora_r,
-        lora_alpha=config.lora_alpha,
-        target_modules=modules,
-    )
+    # modules = [
+    #     n
+    #     for n, p in model.named_modules()
+    #     if isinstance(p, torch.nn.Linear)
+    #     and "head" not in n
+    #     # and "cond_net" not in n
+    #     and "emb" not in n
+    # ]
+    #
+    # lora_config = LoraConfigSimplified(
+    #     r=config.lora_r,
+    #     lora_alpha=config.lora_alpha,
+    #     target_modules=modules,
+    # )
 
     if config.ultravox_pretrained_path is not None:
         model = UltravoxModel.from_pretrained(
@@ -88,11 +105,19 @@ def init_train_state(config: MyUltravoxTrainConfig) -> TrainState:
     else:
         model = UltravoxModel(
             UltravoxConfig(
-                text_config=tr.LlamaConfig(**config.ultravox_kwargs),
-                audio_config=tr.WhisperConfig.from_pretrained("openai/whisper-small"),
-                text_model_lora_config=lora_config,
+                # text_model_id="k-l-lambda/Llama-3.2-100M",
+                # text_model_id="XR17/antlm-llama-ntp-100m",
+                audio_model_id="openai/whisper-tiny",
+                text_config=tr.LlamaConfig(
+                    vocab_size=128128, hidden_size=64, num_hidden_layers=1
+                ).to_dict(),  # **config.ultravox_kwargs),
+                audio_latency_block_size=None,
+                # audio_config=tr.WhisperConfig.from_pretrained("openai/whisper-small"),
+                # text_model_lora_config=lora_config,
             )
         )
+
+    model.set_loss_config(LossConfig(LossFunction.CrossEntropy))
 
     # Prepare model for LoRA
     modules = [
@@ -136,7 +161,13 @@ def init_train_state(config: MyUltravoxTrainConfig) -> TrainState:
     )
 
     # Initialize dataset
-    train_dataset = MyUltravoxDataset(config, model_config=model.config)  # type: ignore
+    processor = UltravoxProcessor.from_pretrained("fixie-ai/ultravox-v0_3-llama-3_2-1b")
+    # processor = UltravoxProcessor.from_pretrained(
+    #     "fixie-ai/ultravox-v0_4_1-llama-3_1-8b"
+    # )
+    processor.tokenizer.padding_side = "right"
+    processor.tokenizer.pad_token = processor.tokenizer.eos_token
+    train_dataset = MyUltravoxDataset(processor)
 
     return TrainState(
         step=0,
@@ -153,7 +184,6 @@ def load_train_state(state: TrainState, config: MyUltravoxTrainConfig) -> TrainS
     state.model.load_state_dict(checkpoint["model"])
     state.optimizer.load_state_dict(checkpoint["optimizer"])
     state.scheduler.load_state_dict(checkpoint["scheduler"])
-    state.train_dataset.data_step = checkpoint["data_step"]
     state = state._replace(step=checkpoint["step"])
     return state
 
@@ -165,7 +195,6 @@ def save_train_state(state: TrainState, config: MyUltravoxTrainConfig) -> None:
         "optimizer": state.optimizer.state_dict(),
         "scheduler": state.scheduler.state_dict(),
         "step": state.step,
-        "data_step": state.step * config.batch_size * config.world_size,
     }
     utils.save_checkpoint(checkpoint, step=state.step, run_id=config.run_id)
 
@@ -176,10 +205,10 @@ def prepare_batch(
     """Prepare batch by moving tensors to device"""
     input_ids = batch["input_ids"].to(device)
     labels = batch["labels"].to(device)
-    audio_emb = batch["audio_emb"].to(device, dtype=torch.bfloat16)
+    audio_values = batch["audio_values"].to(device, dtype=torch.bfloat16)
     audio_token_start_idx = batch["audio_token_start_idx"].to(device)
     audio_token_len = batch["audio_token_len"].to(device)
-    return input_ids, labels, audio_emb, audio_token_start_idx, audio_token_len
+    return input_ids, labels, audio_values, audio_token_start_idx, audio_token_len
 
 
 def compute_loss(
@@ -191,15 +220,14 @@ def compute_loss(
     audio_token_len: torch.Tensor,
 ) -> torch.Tensor:
     """Compute loss for one training step"""
-    model_output = ultravox(
+    loss = ultravox(
         input_ids=input_ids,
         labels=labels,
         audio_values=audio_values,
         audio_token_start_idx=audio_token_start_idx,
         audio_token_len=audio_token_len,
     )
-    breakpoint()
-    return model_output
+    return loss
 
 
 def train_step(
@@ -209,7 +237,7 @@ def train_step(
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # Prepare batch
-    input_ids, labels, audio_emb, audio_token_start_idx, audio_token_len = (
+    input_ids, labels, audio_values, audio_token_start_idx, audio_token_len = (
         prepare_batch(batch, device)
     )
 
@@ -218,10 +246,11 @@ def train_step(
         state.model,  # type: ignore
         input_ids=input_ids,
         labels=labels,
-        audio_values=audio_emb,  # Fixed variable name from audio_value to audio_values
+        audio_values=audio_values,
         audio_token_start_idx=audio_token_start_idx,
         audio_token_len=audio_token_len,
     )
+    breakpoint()
 
     # Optimization step
     state.optimizer.zero_grad()
@@ -328,8 +357,18 @@ def train(config: MyUltravoxTrainConfig) -> None:
     # wandb
     utils.rank_0_only(init_wandb)(state.model, config=config)
 
+    data_collator = DataCollatorForSeq2SeqWithAudio(
+        state.train_dataset.processor.tokenizer
+    )
+
     # train loader
-    train_loader = iter(create_loader(state.train_dataset, config=config))
+    train_loader = iter(
+        create_loader(
+            state.train_dataset,
+            config=config,
+            collate_fn=data_collator,
+        )
+    )
 
     # stats
     stats: dict[str, float] = {
