@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 import datetime
 import logging
+import pkgutil
 import tempfile
 
 from fastapi import FastAPI
@@ -25,10 +26,11 @@ app = FastAPI(title="F5 TTS MLX API", version="1.0")
 
 logger.info("Initializing F5 Inference...")
 f5tts = F5TTS.from_pretrained("lucasnewman/f5-tts-mlx")
+mx.compile(f5tts, inputs=mx.random.state, outputs=mx.random.state)
+
 # f5tts = nn.quantize(f5tts, group_size=64, bits=4)
 
 logger.info("F5 Inference initialized successfully.")
-
 
 app.add_middleware(
     CORSMiddleware,
@@ -58,13 +60,23 @@ async def f5_generate(
 ):
     generation_text = request.input
 
-    ref_audio_path = "./voices/default.wav"
-    ref_audio_text = "Morgan Freeman is an acclaimed American actor and narrator, known for his deep, distinctive voice and versatile roles in films such as The Shawshank Redemption. With the help of text-to-speech tools, it is now possible to generate voice and how to use best Morgan Freeman voice generators in three ways to create custom voiceovers, narrations, and speeches for your videos. Now, let's get started."
-    steps = 10
+    # ref_audio_path = "./voices/default.wav"
+    # ref_audio_text = "If I don't have to, then I don't really leave the house or get out of bed. I just, I can't find the motivation for the things I used to join. I used to love doing sports or going out and now I just prefer to lie in bed and not really"
+
+    data = pkgutil.get_data("f5_tts_mlx", "tests/test_en_1_ref_short.wav")
+    tmp_ref_audio_file = "/tmp/ref.wav"
+    with open(tmp_ref_audio_file, "wb") as f:
+        f.write(data)
+    ref_audio_path = tmp_ref_audio_file
+    if data is not None:
+        audio, sr = sf.read(tmp_ref_audio_file)
+        ref_audio_text = "Some call me nature, others call me mother nature."
+
+    steps = 14
     method = "euler"
     cfg_strength = 2.0
     sway_sampling_coef = -1.0
-    speed = 1.0
+    speed = 1.15
     seed = None
 
     # load reference audio
@@ -73,6 +85,8 @@ async def f5_generate(
         raise ValueError("Reference audio must have a sample rate of 24kHz")
 
     audio = mx.array(audio)
+
+    print(audio.shape)
     ref_audio_duration = audio.shape[0] / SAMPLE_RATE
     print(f"Got reference audio with duration: {ref_audio_duration:.2f} seconds")
 

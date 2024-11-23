@@ -1,6 +1,6 @@
 import { useRef } from "react";
 import { motion } from "framer-motion";
-import { Mic, MicOff } from "lucide-react";
+import { Loader2, Mic, MicOff, Speaker } from "lucide-react";
 
 interface VoiceButtonProps {
   onRecordingComplete: (audioBlob: Blob) => void;
@@ -18,14 +18,14 @@ export default function VoiceButton({
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
 
-  const stateColors: Record<string, { icon: string }> = {
-    idle: { icon: "text-gray-700" },
-    listening: { icon: "text-red-700" },
-    thinking: { icon: "text-purple-700" },
-    speaking: { icon: "text-yellow-700" },
+  const stateIcons: Record<string, { icon: JSX.Element }> = {
+    idle: { icon: <Mic className="w-8 h-8 text-gray-700" /> },
+    listening: { icon: <MicOff className="w-8 h-8 text-red-700 animate-pulse" /> },
+    thinking: { icon: <Loader2 className="w-8 h-8 text-purple-700 animate-spin" /> },
+    speaking: { icon: <Speaker className="w-8 h-8 text-yellow-700 animate-pulse" /> },
   };
 
-  const { icon } = stateColors[currentState] || stateColors.idle;
+  const { icon } = stateIcons[currentState] || stateIcons.idle;
 
   const startRecording = async () => {
     try {
@@ -75,11 +75,7 @@ export default function VoiceButton({
       onClick={currentState !== "thinking" ? (currentState === "listening" ? stopRecording : startRecording) : undefined}
       disabled={currentState === "thinking"}
     >
-      {currentState === "listening" ? (
-        <MicOff className={`w-8 h-8 ${icon}`} />
-      ) : (
-        <Mic className={`w-8 h-8 ${icon}`} />
-      )}
+      {icon}
     </motion.button>
   );
 }

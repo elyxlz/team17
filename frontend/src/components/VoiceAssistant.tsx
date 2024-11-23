@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import VoiceButton from './VoiceButton';
 import ResponseDisplay from './ResponseDisplay';
@@ -35,7 +35,7 @@ export function VoiceAssistant({ showLock = true }: { showLock?: boolean }) {
   const [error, setError] = useState<string | null>(null);
   const [scrollY, setScrollY] = useState(0);
   const [isScrollLocked, setIsScrollLocked] = useState(false);
-  
+
   const [history, setHistory] = useState<Array<{
     timestamp: string;
     transcription: string;
@@ -46,11 +46,12 @@ export function VoiceAssistant({ showLock = true }: { showLock?: boolean }) {
   });
 
   const welcomeText = "Your own private therapist to prevent depression.".split(" ");
+  const audioRef = useRef<HTMLAudioElement | null>(null); // Reference to the audio element
 
   useEffect(() => {
     const handleScroll = () => {
       setScrollY(window.scrollY);
-      
+
       if ((window.innerHeight + window.scrollY) >= document.documentElement.scrollHeight - 50) {
         if (!isScrollLocked) {
           setIsScrollLocked(true);
@@ -59,13 +60,21 @@ export function VoiceAssistant({ showLock = true }: { showLock?: boolean }) {
         }
       }
     };
-    
+
     window.addEventListener("scroll", handleScroll);
     return () => {
       window.removeEventListener("scroll", handleScroll);
       document.body.style.overflow = 'auto';
     };
   }, [isScrollLocked]);
+
+  useEffect(() => {
+    if (response?.audioUrl && audioRef.current) {
+      audioRef.current.play().catch((err) => {
+        console.error("Autoplay failed:", err);
+      });
+    }
+  }, [response?.audioUrl]);
 
   const handleLogout = () => {
     localStorage.removeItem('isAuthenticated');
@@ -82,8 +91,6 @@ export function VoiceAssistant({ showLock = true }: { showLock?: boolean }) {
     setResponse(null);
     setCurrentState("thinking");
     try {
-      // const transcription = await getTranscription(audioBlob);
-      // const aiResponse = await processMessageWithOpenAI(audioBlob);
       const aiResponse = await processMessageWithLocal(audioBlob);
       setResponse(aiResponse);
       const transcription = "";
@@ -106,18 +113,15 @@ export function VoiceAssistant({ showLock = true }: { showLock?: boolean }) {
       response,
     };
 
-    // Get existing sessions or initialize empty array
     const savedSessions = localStorage.getItem('chatSessions');
     const sessions: ChatSession[] = savedSessions ? JSON.parse(savedSessions) : [];
 
-    // Check if there's an active session for today
     const today = new Date().toISOString();
-    let currentSession = sessions.find(s => 
+    let currentSession = sessions.find(s =>
       new Date(s.startTime).toDateString() === new Date(today).toDateString()
     );
 
     if (!currentSession) {
-      // Create new session if none exists for today
       currentSession = {
         sessionId: crypto.randomUUID(),
         startTime: today,
@@ -126,57 +130,75 @@ export function VoiceAssistant({ showLock = true }: { showLock?: boolean }) {
       sessions.push(currentSession);
     }
 
-    // Add new message to current session
     currentSession.messages.push(newMessage);
-
-    // Save back to localStorage
     localStorage.setItem('chatSessions', JSON.stringify(sessions));
-
-    // Update local state if needed
     setHistory(prev => [...prev, newMessage]);
   };
 
   return (
     <div className="App">
-        <AnimatedText text={welcomeText} scrollY={scrollY} />
+      <AnimatedText text={welcomeText} scrollY={scrollY} />
       <AnimatedBlob scrollY={scrollY} currentState={currentState}>
-        <VoiceButton 
-          onRecordingComplete={handleRecordingComplete} 
+        <VoiceButton
+          onRecordingComplete={handleRecordingComplete}
           currentState={currentState}
           setCurrentState={setCurrentState}
-          onError={handleError} 
+          onError={handleError}
         />
       </AnimatedBlob>
-      
+
       {showLock && localStorage.getItem('isAuthenticated') && (
-        <button 
+        <button
           onClick={handleLogout}
           className="fixed top-4 right-4 px-4 py-2 text-black hover:italic rounded transition-colors"
         >
           🔐 Lock
         </button>
       )}
-    
+
       <div className="grosse_div min-h-screen bg-gradient-to-br flex flex-col items-center justify-center p-4">
-        {error && (
-          <ErrorMessage message={error} />
-        )}
-
-        {/* <ResponseDisplay
-          response={response}
-          isVisible={!!response && !error}
-        /> */}
-
-        
+        {error && <ErrorMessage message={error} />}
 
         <div className="mt-4 text-center text-gray-500 text-sm sticky top-[550px]">
           Click the button and start speaking
         </div>
 
-        {history.length > 0 && <ChatHistory history={history} />}
+        {response && (
+          <div className="w-full flex justify-center pb-4 px-4 bg-gradient-to-t from-white via-white to-transparent sticky top-[600px]">
+            <div className="w-full max-w-[750px]">
+              <h3 className="align-left text-xl font-semibold text-gray-800 mb-4 text-left">Recent Conversation</h3>
+              <div className="bg-white rounded-lg shadow-sm p-4 border border-gray-200 mb-3">
+                <div className="flex justify-between items-center mb-2">
+                  <div className="text-xs text-gray-500">soijosd</div>
+                  <div className="text-xs text-gray-500">
+                    {history.length} message{history.length > 1 ? 's' : ''}
+                  </div>
+                </div>
+                <div className="text-gray-800 text-left">
+                  <div className="mb-2">
+                    <span className="font-semibold">Therapist:</span> {response.text.replace(/^\s+|\s+$/g, '').replace(/["']/g, '')}
+                  </div>
+                  <div className="mt-2">
+                    <audio controls className="w-full" ref={audioRef}>
+                      <source src={response.audioUrl} type="audio/wav" />
+                    </audio>
+                  </div>
+                </div>
+                <div className="mt-4 text-center">
+                  <button
+                    onClick={() => window.location.href = '/conversations'}
+                    className="px-4 py-2 text-sm text-white bg-blue-500 rounded hover:bg-blue-600 transition-colors"
+                  >
+                    See All Conversations
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         <Footer scrollY={scrollY} />
       </div>
     </div>
   );
-} 
+}

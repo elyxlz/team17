@@ -17,8 +17,8 @@ app = FastAPI(title="Text-to-Speech & Speech-to-Text API", version="1.0")
 
 logger.info("Initializing Ultravox Inference...")
 ultravox = UltravoxInference(
-    model_path="./ultravox/ultravox-v0_3-llama-3_2-1b",
-    conversation_mode=True,
+    model_path="elyx/batman-1",
+    conversation_mode=False,
     device="mps",
     data_type="float16",
 )
@@ -75,7 +75,7 @@ async def stt_endpoint_file(audio_file: UploadFile = File(...)):
             [
                 {
                     "role": "system",
-                    "content": "You are a compassionate and empathetic psychologist, focused on active listening and providing thoughtful, supportive responses to emotional needs.",
+                    "content": "You are a compassionate and empathetic psychologist, focused on active listening and providing thoughtful, supportive responses to emotional needs. Please avoid including non-verbal descriptions or actions (e.g., *offers a warm smile*) in your responses to ensure they play well with text-to-speech systems. Never make more than 2 sentences.",
                 }
             ]
         )

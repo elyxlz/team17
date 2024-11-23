@@ -19,7 +19,7 @@ export function ChatHistory({ history }: ChatHistoryProps) {
     startTime: new Date(history[0].timestamp).toLocaleString(),
     messages: history
   };
-  
+
   const firstMessage = history[history.length - 1];
 
   return (
@@ -44,13 +44,12 @@ export function ChatHistory({ history }: ChatHistoryProps) {
             <div className="mb-2">
               <span className="font-semibold">Therapist:</span> {firstMessage.response.text.replace(/^\s+|\s+$/g, '').replace(/["']/g, '')}
             </div>
-            {firstMessage.response.audioUrl && (
-              <div className="mt-2">
-                <audio controls className="w-full">
-                  <source src={firstMessage.response.audioUrl} type="audio/wav" />
-                </audio>
-              </div>
-            )}
+
+            <div className="mt-2">
+              <audio controls className="w-full">
+                <source src={firstMessage.response.audioUrl} type="audio/wav" />
+              </audio>
+            </div>
           </div>
           <div className="mt-4 text-center">
             <button
