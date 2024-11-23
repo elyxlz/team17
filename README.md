@@ -1,8 +1,6 @@
-# Batman 🦇
+# Seren
 
-<p align="center"><img src="./assets/batman.jpg" alt="Batman"></p>
-
-Batman is a 100% local and custom speech2speech pipeline purpose built for emotional understanding and therapeutic conversations. 🗣️
+Seren is a 100% local and custom speech2speech pipeline purpose built for emotional understanding and therapeutic conversations. 🗣️
 
 # Architecture and Training
 
@@ -27,4 +25,3 @@ The TTS stage currently represents our primary latency bottleneck. Our planned e
 # Inference
 
 # Frontend
-
