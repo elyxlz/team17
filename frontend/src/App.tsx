@@ -6,6 +6,7 @@ import VoiceButton from './components/VoiceButton';
 import ResponseDisplay from './components/ResponseDisplay';
 import ErrorMessage from './components/ErrorMessage';
 import { processMessageWithOpenAI } from './utils/openai';
+import { processMessageWithLocal } from './utils/local';
 import { ConfigError } from './utils/config';
 import Register from './components/Register.tsx';
 import Login from './components/Login.tsx';
@@ -62,7 +63,8 @@ function VoiceAssistant() {
     setIsProcessing(true);
 
     try {
-      const aiResponse = await processMessageWithOpenAI(audioBlob);
+      // const aiResponse = await processMessageWithOpenAI(audioBlob);
+      const aiResponse = await processMessageWithLocal(audioBlob);
       setResponse(aiResponse);
 
       const newHistoryItem = {

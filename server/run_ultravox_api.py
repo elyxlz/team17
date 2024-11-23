@@ -57,6 +57,7 @@ async def stt_endpoint_file(audio_file: UploadFile = File(...)):
         logger.info("Running inference on the audio sample.")
         voice_output = ultravox.infer(
             sample=sample,
+            max_tokens=40,
         )
 
         logger.info("Inference completed successfully. Returning response.")

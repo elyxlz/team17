@@ -40,29 +40,45 @@ export async function processMessageWithLocal(audioBlob: Blob): Promise<AIRespon
       response_format: "wav",
       model: "fish-speech-1.4",
     };
+    console.log(`TTS Request Body: ${JSON.stringify(ttsRequestBody)}`);
 
-    const ttsResponse = await fetch(TTS_URL, {
+    const ttsResponseBlob = await fetch(TTS_URL, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
       body: JSON.stringify(ttsRequestBody),
-    }).then(response => response.arrayBuffer()).then(buffer => new Blob([buffer]));
+    }).then((response) => {
+      if (!response.ok) {
+        throw new Error(`Text-to-Speech Error: ${response.statusText}`);
+      }
+      return response.blob(); // Get the audio file as a Blob
+    });
 
-    // if (!ttsResponse.ok) {
-    //   throw new Error(`Text-to-Speech Error: ${ttsResponse.statusText}`);
-    // }
-    console.log(`TTS Response: ${ttsResponse}`);
-    // const ttsAudioBlob = await ttsResponse.blob();
-    const ttsAudioBlob = ttsResponse;
-    const audioUrl = URL.createObjectURL(ttsAudioBlob);
+    // Create a URL for the Blob
+    // const audioUrl = URL.createObjectURL(ttsResponseBlob);
+    // Convert the Blob to Base64
+    const audioBase64 = await blobToBase64(ttsResponseBlob);
+    console.log(`Audio Base64: ${audioBase64}`);
 
     return {
       text: transcribedText,
-      audioUrl: audioUrl,
+      audioUrl: `data:audio/wav;base64,${audioBase64}`,
     };
   } catch (error) {
     console.error("Error processing message locally:", error);
     throw error;
   }
+}
+
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64data = reader.result?.toString().split(",")[1]; // Remove the metadata
+      resolve(base64data || "");
+    };
+    reader.onerror = (error) => reject(error);
+    reader.readAsDataURL(blob);
+  });
 }

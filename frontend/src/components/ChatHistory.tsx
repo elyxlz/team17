@@ -42,11 +42,15 @@ export function ChatHistory({ history }: ChatHistoryProps) {
             <div className="mb-2">
               <span className="font-semibold">Therapist:</span> {firstMessage.response.text}
             </div>
+            Heyyy
+            {firstMessage.response.audioUrl}
             {firstMessage.response.audioUrl && (
               <div className="mt-2">
                 <audio controls className="w-full">
-                  <source src={firstMessage.response.audioUrl} type="audio/mpeg" />
+                  <source src={firstMessage.response.audioUrl} type="audio/wav" />
+                  {/* <source src={firstMessage.response.audioUrl} type="audio/wav" /> */}
                 </audio>
+                {firstMessage.response.audioUrl}
               </div>
             )}
           </div>

@@ -24,9 +24,15 @@ export default function ResponseDisplay({ response, isVisible }: ResponseDisplay
       className="w-full max-w-2xl mt-8 p-6 bg-white rounded-lg shadow-lg"
     >
       <div className="flex items-start justify-between gap-4">
-        <p className="text-gray-800 text-lg leading-relaxed flex-1">
+        <p className="text-gray-800 text-lg leading-relaxed flex-1 flex flex-col gap-4">
           {response.text}
+        {response.audioUrl && (
+          <audio controls className="w-full">
+            <source src={response.audioUrl} type="audio/wav" />
+          </audio>
+        )}
         </p>
+
       </div>
     </motion.div>
   );
