@@ -1,4 +1,0 @@
-- make sure dataset from preprocessed works x
-- make sure model trains x
-- check lora
-
