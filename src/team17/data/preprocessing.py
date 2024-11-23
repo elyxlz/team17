@@ -31,7 +31,7 @@ class PreprocessingConfig(pyds.BaseSettings):
     transcription_model: str = "medium"  # Model for transcription
     embedding_model: str = "small"  # Model for embeddings
     compute_type: str = "float16"
-    inner_batch_size: int = 4
+    inner_batch_size: int = 8
     use_cuda: bool = torch.cuda.is_available()
     chunk_frames: int = 16_000 * 60
     sample_rate: int = 16_000
@@ -324,16 +324,14 @@ def process_audio_chunks(config: PreprocessingConfig):
                 for i in range(start_idx, end_idx):
                     sequence.append(f"<a{i}>")
             else:
-                sequence.append(segment["text"])
+                sequence.append(segment["text"].strip())
 
-        text = "".join(sequence)
+        text = " ".join(sequence)
 
         processed_data = {
             "text": text,
             "audio_emb": embeddings.cpu().numpy(),
         }
-
-        breakpoint()
 
         save_executor.submit(
             _save_processed_data, processed_data, filename, config.output_path
