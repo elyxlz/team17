@@ -16,7 +16,7 @@ class UltravoxPipeline(transformers.Pipeline):
         model: UltravoxModel,
         tokenizer: Optional[transformers.PreTrainedTokenizerBase] = None,
         audio_processor: Optional[transformers.ProcessorMixin] = None,
-        **kwargs
+        **kwargs,
     ):
         if tokenizer is None:
             try:
@@ -110,7 +110,7 @@ class UltravoxPipeline(transformers.Pipeline):
             temperature=temperature,
             max_new_tokens=max_new_tokens,
             repetition_penalty=repetition_penalty,
-            eos_token_id=terminators
+            eos_token_id=terminators,
         )
         return outputs[0][input_len:]
 

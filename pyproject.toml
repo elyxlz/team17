@@ -1,6 +1,6 @@
 [project]
 name = "team17"
-version = "0.1.0"
+version = "0.1.1"
 description = "Add your description here"
 readme = "README.md"
 authors = [{ name = "elyx", email = "elio@pascarelli.com" }]
@@ -24,10 +24,13 @@ dependencies = [
   "peft>=0.13.0",
   "soundfile>=0.12.1",
   "gradio>=3.36.1",
-  "whisperx>=3.1.6",
+  "whisperx @ git+https://github.com/federicotorrielli/BetterWhisperX",
   "fastapi[standard]>=0.115.5",
   "python-multipart>=0.0.12",
 ]
+
+[tool.hatch.metadata]
+allow-direct-references = true
 
 [project.scripts]
 team17 = "team17:main"

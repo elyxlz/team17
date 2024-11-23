@@ -1,6 +1,5 @@
 import pytest
 import transformers
-
 from ultravox.model import ultravox_config
 
 

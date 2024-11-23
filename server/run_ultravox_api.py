@@ -1,7 +1,8 @@
 import logging
 import shutil
-from pydantic import BaseModel
+
 from fastapi import FastAPI, File, HTTPException, UploadFile
+from pydantic import BaseModel
 from ultravox.data.data_sample import VoiceSample
 from ultravox.inference.ultravox_infer import UltravoxInference
 
