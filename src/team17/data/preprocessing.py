@@ -256,7 +256,9 @@ def process_audio_chunks(config: PreprocessingConfig):
             language="en",
         )
 
-    diarize_model = whisperx.DiarizationPipeline(use_auth_token=os.getenv("HF_TOKEN"))
+    diarize_model = whisperx.DiarizationPipeline(
+        device=device, use_auth_token=os.getenv("HF_TOKEN")
+    )
 
     dataset = AudioChunkDataset(
         config.input_path,
