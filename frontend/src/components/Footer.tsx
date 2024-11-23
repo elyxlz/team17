@@ -7,7 +7,7 @@ export const Footer = () => {
         initial={{ opacity: 0, y: 50 }}
         animate={{ opacity: 1, y: 0 }}
         className="bg-gray-800/80 text-white px-6 py-3 rounded-lg shadow-lg 
-          backdrop-blur-sm max-w-3xl w-11/12 text-center text-sm"
+          backdrop-blur-sm max-w-[750px] w-11/12 text-center text-sm"
       >
         Your conversations are only stored locally on your device, it never leaves your control. 
         None of what you will say can be accessed or used. 🤫

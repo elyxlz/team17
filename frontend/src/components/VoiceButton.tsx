@@ -90,9 +90,9 @@ export default function VoiceButton({ onRecordingComplete, isProcessing, onError
         animate={isRecording ? "recording" : "idle"}
       />
       {isRecording ? (
-        <MicOff className="w-12 h-12" />
+        <MicOff className="w-12 h-12 text-pink-300" />
       ) : (
-        <Mic className="w-12 h-12" />
+        <Mic className="w-12 h-12 text-pink-300" />
       )}
     </motion.button>
   );

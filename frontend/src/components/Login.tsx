@@ -18,7 +18,24 @@ const Login = () => {
         if (user) {
             const isValidPassword = await comparePassword(password, user.password);
             if (isValidPassword) {
+                // Create a new chat session
+                const newSessionId = Date.now().toString();
+                const currentTime = new Date().toISOString();
+                
+                // Get existing sessions or initialize empty array
+                const existingSessions = JSON.parse(localStorage.getItem('chatSessions') || '[]');
+                
+                // Add new session
+                const newSession = {
+                    sessionId: newSessionId,
+                    startTime: currentTime,
+                    messages: []
+                };
+                
+                localStorage.setItem('chatSessions', JSON.stringify([...existingSessions, newSession]));
+                localStorage.setItem('currentSessionId', newSessionId);
                 localStorage.setItem('isAuthenticated', 'true');
+                
                 navigate('/');
             } else {
                 alert("Invalid passcode.");
