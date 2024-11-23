@@ -21,7 +21,3 @@ The training data consisted of hand-curated therapeutic conversations, collected
 The ALM was initialized from Ultravox weights and fine-tuned using LoRA and activation checkpointing via a custom trainer.
 
 The TTS stage currently represents our primary latency bottleneck. Our planned evolution involves interleaving mimi (Moshi codec) and text tokens (thought tokens) in the assistant outputs to create a unified end-to-end speechLM. ⚡
-
-# Inference
-
-# Frontend
