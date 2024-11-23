@@ -16,7 +16,7 @@ class MyUltravoxDataset(Dataset):
     def __init__(
         self,
         processor: UltravoxProcessor,
-        data_dir: str = "./data/processed",
+        data_dir: str = "/root/team17/data/processed",
         train_on_inputs: bool = False,
         inference_mode: bool = False,
     ):
