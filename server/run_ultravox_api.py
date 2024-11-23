@@ -1,7 +1,8 @@
 import logging
+import uuid
+from fastapi.middleware.cors import CORSMiddleware
 import shutil
-from pydantic import BaseModel
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, UploadFile
 from ultravox.data.data_sample import VoiceSample
 from ultravox.inference.ultravox_infer import UltravoxInference
 
@@ -23,61 +24,29 @@ ultravox = UltravoxInference(
 logger.info("Ultravox Inference initialized successfully.")
 
 
-class STTResponse(BaseModel):
-    text: str
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Replace with specific domains in production
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
-@app.post("/speech-to-text-buf/", response_model=STTResponse)
-async def stt_endpoint_buf(audio_buf: UploadFile = File(...)):
-    """
-    Converts an uploaded audio file to text.
-    """
-    logger.info("Received audio buffer for speech-to-text conversion.")
-
-    try:
-        # Read the uploaded audio buffer
-        audio_data = await audio_buf.read()
-        logger.info(f"Audio buffer read successfully. Size: {len(audio_data)} bytes.")
-
-        # Create a VoiceSample from the provided buffer
-        logger.info("Creating VoiceSample from the provided audio buffer.")
-        sample = VoiceSample.from_prompt_and_buf(
-            buf=audio_data,
-            prompt="<|audio|>",
-        )
-
-        # Perform inference on the audio sample
-        logger.info("Running inference on the audio sample.")
-        voice_output = ultravox.infer(
-            sample=sample,
-        )
-
-        logger.info("Inference completed successfully. Returning response.")
-        return STTResponse(text=voice_output.text)
-
-    except Exception as e:
-        logger.error(
-            f"Error occurred during speech-to-text conversion: {e}", exc_info=True
-        )
-        raise HTTPException(
-            status_code=500,
-            detail="An error occurred during speech-to-text processing.",
-        )
-
-
-@app.post("/speech-to-text-file/", response_model=STTResponse)
+@app.post("/speech-to-text-file/")
 async def stt_endpoint_file(audio_file: UploadFile = File(...)):
     """
     Converts an uploaded audio file to text.
     """
     logger.info("Received audio file for speech-to-text conversion.")
 
+    uuid_ = str(uuid.uuid4())
     # Copy the file to a temporary location
-    temp_file_path = f"/tmp/{audio_file.filename}"
+    temp_file_path = f"/tmp/{uuid_}.wav"
     with open(temp_file_path, "wb") as temp_file:
         shutil.copyfileobj(audio_file.file, temp_file)
+        print(f"Copied file to {temp_file_path}")
 
-    print(audio_file)
     try:
         logger.info("Creating VoiceSample from the provided audio buffer.")
         sample = VoiceSample.from_prompt_and_file(
@@ -91,7 +60,8 @@ async def stt_endpoint_file(audio_file: UploadFile = File(...)):
         )
 
         logger.info("Inference completed successfully. Returning response.")
-        return STTResponse(text=voice_output.text)
+        logger.info(f"Response: {voice_output.text}")
+        return voice_output.text
 
     except Exception as e:
         logger.error(

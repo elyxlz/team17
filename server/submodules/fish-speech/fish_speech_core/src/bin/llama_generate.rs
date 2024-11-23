@@ -10,7 +10,6 @@ use fish_speech_core::models::text2semantic::utils::{
 use fish_speech_core::models::text2semantic::{BaseModelArgs, DualARTransformer};
 use fish_speech_core::models::vqgan::config::WhichModel;
 use std::path::PathBuf;
-use std::time::{Duration, Instant};
 use tokenizers::Tokenizer;
 
 fn generate_long(
