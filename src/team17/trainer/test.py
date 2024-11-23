@@ -5,10 +5,10 @@ import torch.distributed as dist
 import tqdm
 import transformers as tr
 
+from team17.modeling.model import UltravoxModel
 from team17.trainer import logging, utils
 from team17.trainer.config import MyUltravoxTrainConfig
 from team17.trainer.dataset import MyUltravoxDataset
-from team17.modeling.model import UltravoxModel
 
 
 def init_eval_environment(
