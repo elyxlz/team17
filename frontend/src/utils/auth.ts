@@ -14,6 +14,7 @@ export const comparePassword = async (password: string, hashedPassword: string):
 
 export const logout = async (): Promise<void> => {
     await removeItem("user");
+    localStorage.removeItem('isAuthenticated');
     alert("Logged out successfully.");
 };
 

@@ -4,7 +4,6 @@ import { setItem } from "../utils/storage.ts";
 import { useNavigate } from 'react-router-dom';
 
 const Register: React.FC = () => {
-    const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
     const navigate = useNavigate();
 
@@ -12,32 +11,24 @@ const Register: React.FC = () => {
         e.preventDefault();
 
         const hashedPassword = await hashPassword(password);
-        await setItem("user", { username, password: hashedPassword });
+        await setItem("user", { username: "user01", password: hashedPassword });
 
         alert("Registration successful!");
-        setUsername("");
         setPassword("");
         navigate('/');
     };
 
     return (
         <form onSubmit={handleRegister}>
-            <h2>Register</h2>
-            <input
-                type="text"
-                placeholder="Username"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                required
-            />
+            <h2>Set Passcode</h2>
             <input
                 type="password"
-                placeholder="Password"
+                placeholder="Enter passcode"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
             />
-            <button type="submit">Register</button>
+            <button type="submit">Set Passcode</button>
         </form>
     );
 };

@@ -4,12 +4,10 @@ import { getItem } from "../utils/storage";
 import { useNavigate } from "react-router-dom";
 
 interface User {
-    username: string;
     password: string;
 }
 
 const Login = () => {
-    const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
     const navigate = useNavigate();
 
@@ -17,48 +15,39 @@ const Login = () => {
         e.preventDefault();
 
         const user = await getItem("user") as User;
-        if (user && user.username === username) {
+        if (user) {
             const isValidPassword = await comparePassword(password, user.password);
             if (isValidPassword) {
-                alert("Login successful!");
-                setUsername("");
-                setPassword("");
-                handleLoginSuccess();
+                localStorage.setItem('isAuthenticated', 'true');
+                navigate('/');
             } else {
-                alert("Invalid password.");
+                alert("Invalid passcode.");
             }
         } else {
-            alert("User not found.");
+            alert("No passcode set. Please register first.");
+            navigate('/register');
         }
-    };
-
-    const handleLoginSuccess = () => {
-        // Set authentication flag
-        localStorage.setItem('isAuthenticated', 'true');
-        // Redirect to main page
-        navigate('/');
     };
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
             <div className="bg-white p-8 rounded-lg shadow-md w-96">
-                <h2 className="text-2xl font-bold mb-4">Login</h2>
+                <h2 className="text-2xl font-bold mb-4">Enter Passcode</h2>
                 <form onSubmit={handleLogin}>
                     <input
-                        type="text"
-                        placeholder="Username"
-                        value={username}
-                        onChange={(e) => setUsername(e.target.value)}
-                        required
-                    />
-                    <input
                         type="password"
-                        placeholder="Password"
+                        placeholder="Enter passcode"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
+                        className="w-full p-2 mb-4 border rounded"
                         required
                     />
-                    <button type="submit">Login</button>
+                    <button 
+                        type="submit"
+                        className="w-full bg-blue-500 text-white p-2 rounded hover:bg-blue-600"
+                    >
+                        Unlock
+                    </button>
                 </form>
             </div>
         </div>

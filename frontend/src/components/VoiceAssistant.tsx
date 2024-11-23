@@ -1,11 +1,12 @@
 import { useNavigate } from 'react-router-dom';
+import { logout } from '../utils/auth';
 // ... other existing imports ...
 
 const VoiceAssistant = () => {
     const navigate = useNavigate();
 
-    const handleLogout = () => {
-        localStorage.removeItem('isAuthenticated');
+    const handleLogout = async () => {
+        await logout();
         navigate('/login');
     };
 

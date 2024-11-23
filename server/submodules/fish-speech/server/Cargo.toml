@@ -19,6 +19,7 @@ flash-attn = ["cuda", "dep:candle-flash-attn"]
 
 
 [dependencies]
+tower-http = { version = "0.4", features = ["cors"] }
 anyhow = "1.0.86"
 async-stream = "0.3.6"
 axum ={ version =  "0.7.7", features =["multipart"] }

@@ -4,8 +4,8 @@ export type AIResponse = {
 };
 
 // Local backend URLs
-const STT_URL = "http://0.0.0.0:8000/speech-to-text-file/";
-const TTS_URL = "http://localhost:3000/v1/audio/speech";
+const STT_URL = "/api/stt";
+const TTS_URL = "/api/tts";
 
 // Speech-to-Text and Text-to-Speech function
 export async function processMessageWithLocal(audioBlob: Blob): Promise<AIResponse> {
@@ -17,14 +17,17 @@ export async function processMessageWithLocal(audioBlob: Blob): Promise<AIRespon
     const sttResponse = await fetch(STT_URL, {
       method: "POST",
       body: formData,
-    });
+      // mode: "no-cors",
+    }).then((res) => res.text());
+    // console.log(sttResponse);
+    // if (!sttResponse.ok) {
+    //   throw new Error(`Speech-to-Text Error: ${sttResponse.statusText}`);
+    // }
+    console.log(`STT Response: ${sttResponse}`);
 
-    if (!sttResponse.ok) {
-      throw new Error(`Speech-to-Text Error: ${sttResponse.statusText}`);
-    }
+    const transcribedText = sttResponse;
 
-    const sttData = await sttResponse.json();
-    const transcribedText = sttData.text;
+    // const transcribedText = "This is a test";
 
     if (!transcribedText) {
       throw new Error("No transcription available from the local backend");
@@ -44,13 +47,14 @@ export async function processMessageWithLocal(audioBlob: Blob): Promise<AIRespon
         "Content-Type": "application/json",
       },
       body: JSON.stringify(ttsRequestBody),
-    });
+    }).then(response => response.arrayBuffer()).then(buffer => new Blob([buffer]));
 
-    if (!ttsResponse.ok) {
-      throw new Error(`Text-to-Speech Error: ${ttsResponse.statusText}`);
-    }
-
-    const ttsAudioBlob = await ttsResponse.blob();
+    // if (!ttsResponse.ok) {
+    //   throw new Error(`Text-to-Speech Error: ${ttsResponse.statusText}`);
+    // }
+    console.log(`TTS Response: ${ttsResponse}`);
+    // const ttsAudioBlob = await ttsResponse.blob();
+    const ttsAudioBlob = ttsResponse;
     const audioUrl = URL.createObjectURL(ttsAudioBlob);
 
     return {
