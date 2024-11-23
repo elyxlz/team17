@@ -1,4 +1,5 @@
 import datetime
+import dataclasses
 import dotenv
 import typing
 
@@ -29,6 +30,22 @@ class TrainState(typing.NamedTuple):
     train_dataset: MyUltravoxDataset
 
 
+@dataclasses.dataclass
+class LoraConfigSimplified:
+    """
+    Low Rank Approximation (LoRA) configuration.
+
+    Used for language and audio models separately.
+    """
+
+    # The rank of the approximation
+    r: int = 0
+    lora_alpha: float = 8
+    target_modules: list[str] | None = dataclasses.field(
+        default_factory=lambda: ["k_proj", "q_proj", "linear_k", "linear_q"]
+    )
+
+
 def create_lora_config(
     config: MyUltravoxTrainConfig,
     modules: list[str],  # , to_save: list[str]
@@ -46,14 +63,36 @@ def create_lora_config(
 def init_train_state(config: MyUltravoxTrainConfig) -> TrainState:
     device = utils.get_device()
 
+    modules = [
+        n
+        for n, p in model.named_modules()
+        if isinstance(p, torch.nn.Linear)
+        and "head" not in n
+        # and "cond_net" not in n
+        and "emb" not in n
+    ]
+
+    lora_config = LoraConfigSimplified(
+        r=config.lora_r,
+        lora_alpha=config.lora_alpha,
+        target_modules=modules,
+    )
+
     if config.ultravox_pretrained_path is not None:
         model = UltravoxModel.from_pretrained(
             config.ultravox_pretrained_path,
+            text_model_lora_config=lora_config,
             **config.ultravox_kwargs,
         )
         # model = UltravoxModel(UltravoxConfig(**config.ultravox_kwargs))
     else:
-        model = UltravoxModel(UltravoxConfig(**config.ultravox_kwargs))
+        model = UltravoxModel(
+            UltravoxConfig(
+                text_config=tr.LlamaConfig(**config.ultravox_kwargs),
+                audio_config=tr.WhisperConfig.from_pretrained("openai/whisper-small"),
+                text_model_lora_config=lora_config,
+            )
+        )
 
     # Prepare model for LoRA
     modules = [
@@ -133,26 +172,27 @@ def save_train_state(state: TrainState, config: MyUltravoxTrainConfig) -> None:
 
 def prepare_batch(
     batch: dict, device: torch.device
-) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     """Prepare batch by moving tensors to device"""
     input_ids = batch["input_ids"].to(device)
+    labels = batch["labels"].to(device)
     audio_emb = batch["audio_emb"].to(device, dtype=torch.bfloat16)
     audio_token_start_idx = batch["audio_token_start_idx"].to(device)
     audio_token_len = batch["audio_token_len"].to(device)
-    return input_ids, audio_emb, audio_token_start_idx, audio_token_len
+    return input_ids, labels, audio_emb, audio_token_start_idx, audio_token_len
 
 
 def compute_loss(
     ultravox: UltravoxModel,
     input_ids: torch.Tensor,
+    labels: torch.Tensor,
     audio_values: torch.Tensor,
     audio_token_start_idx: torch.Tensor,
     audio_token_len: torch.Tensor,
 ) -> torch.Tensor:
     """Compute loss for one training step"""
-    labels = input_ids[:, 1:].contiguous()
     model_output = ultravox(
-        input_ids=input_ids[:, :-1],
+        input_ids=input_ids,
         labels=labels,
         audio_values=audio_values,
         audio_token_start_idx=audio_token_start_idx,
@@ -169,14 +209,15 @@ def train_step(
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # Prepare batch
-    input_ids, audio_emb, audio_token_start_idx, audio_token_len = prepare_batch(
-        batch, device
+    input_ids, labels, audio_emb, audio_token_start_idx, audio_token_len = (
+        prepare_batch(batch, device)
     )
 
     # Compute loss
     loss = compute_loss(
         state.model,  # type: ignore
         input_ids=input_ids,
+        labels=labels,
         audio_values=audio_emb,  # Fixed variable name from audio_value to audio_values
         audio_token_start_idx=audio_token_start_idx,
         audio_token_len=audio_token_len,
