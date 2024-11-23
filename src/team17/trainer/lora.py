@@ -43,11 +43,12 @@ def merge_lora(model: torch.nn.Module) -> torch.nn.Module:
     """merge lora parametrization to all layers in a model. This will remove all parametrization"""
     for layer in model.modules():
         if hasattr(layer, "parametrizations"):
-            for attr_name in layer.parametrizations.keys():
+            # Create a list of keys first before iteration
+            param_keys = list(layer.parametrizations.keys())
+            for attr_name in param_keys:
                 torch.nn.utils.parametrize.remove_parametrizations(
                     layer, attr_name, leave_parametrized=True
-                )  # type: ignore
-
+                )
     return model
 
 

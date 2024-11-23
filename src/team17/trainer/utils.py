@@ -251,11 +251,11 @@ def save_checkpoint(
 
 
 def get_log_dir() -> str:
-    log_dir = os.getenv("MODEL_FACTORY_LOG_DIR")
+    log_dir = os.getenv("TEMP_LOG_DIR")
     if log_dir is None:
         log_dir = os.path.join(os.getcwd(), "logs")
         pprint(
-            f"WARNING: environment variable MODEL_FACTORY_LOG_DIR is unset. using default log directory: {log_dir}",
+            f"WARNING: environment variable TEMP_LOG_DIR is unset. using default log directory: {log_dir}",
             color="bold red",
         )
     os.makedirs(log_dir, exist_ok=True)

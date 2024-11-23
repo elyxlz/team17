@@ -10,10 +10,7 @@ class MyUltravoxTrainConfig(utils.BaseConfig):
 
     ## model
     ultravox_pretrained_path: str | None
-    ultravox_kwargs: dict = {}
 
-    text_tokenizer_path: str
-    text_max_length: int
     sample_rate: int
 
     ## lora
@@ -22,8 +19,6 @@ class MyUltravoxTrainConfig(utils.BaseConfig):
 
     ## data
     data_path: str = "./data/tokens"
-    fake: bool
-    overfit: bool
     batch_size: int
     num_workers: int
     test_size: int

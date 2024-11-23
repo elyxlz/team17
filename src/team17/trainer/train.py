@@ -1,9 +1,7 @@
 import datetime
-from enum import Enum
 import dataclasses
 import dotenv
 import typing
-import copy
 
 import torch
 import torch.distributed as dist
@@ -43,9 +41,8 @@ class LossConfig:
         return self.loss_function == "kl"
 
 
-def init_train_state(config: MyUltravoxTrainConfig) -> TrainState:
+def init_model(config: MyUltravoxTrainConfig):
     device = utils.get_device()
-
     if config.ultravox_pretrained_path is not None:
         model = UltravoxModel.from_pretrained(config.ultravox_pretrained_path)
     else:
@@ -66,6 +63,13 @@ def init_train_state(config: MyUltravoxTrainConfig) -> TrainState:
     lora.add_lora(model, lora_rank=config.lora_r, skip=skip_modules)
 
     model = model.to(device, torch.bfloat16)
+    return model
+
+
+def init_train_state(config: MyUltravoxTrainConfig) -> TrainState:
+    device = utils.get_device()
+
+    model = init_model(config)
 
     # Filter trainable parameters for optimizer
     optimizer_params = []
@@ -138,6 +142,113 @@ def prepare_batch(
     return input_ids, labels, audio_values, audio_token_start_idx, audio_token_len
 
 
+def push_to_hub(
+    model: UltravoxModel,
+    processor: UltravoxProcessor,
+    config: MyUltravoxTrainConfig,
+    step: int,
+) -> None:
+    """Push model and processor to hub with merged LoRA weights"""
+    # Create CPU copy of model and merge LoRA weights
+    # # MEGA HACK CUZ DEEPCOPy DOESNT WORK AAAAA
+    cpu_model = init_model(config)
+
+    cpu_model.load_state_dict(model.state_dict())
+
+    # cpu_model = copy.deepcopy(model).cpu()
+    merged_model = lora.merge_lora(cpu_model)
+
+    # Push both model and processor
+    merged_model.push_to_hub(
+        f"{config.run_name}",
+        commit_message=f"step {step}, run_id {config.run_id}",
+    )
+    processor.push_to_hub(
+        f"{config.run_name}",
+        commit_message=f"step {step}, run_id {config.run_id}",
+    )
+
+
+def train_step(
+    state: TrainState, batch: dict, config: MyUltravoxTrainConfig
+) -> tuple[TrainState, float, float]:
+    """Execute one training step"""
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    # Prepare batch
+    input_ids, labels, audio_values, audio_token_start_idx, audio_token_len = (
+        prepare_batch(batch, device)
+    )
+
+    # Compute loss
+    loss = compute_loss(
+        state.model,  # type: ignore
+        input_ids=input_ids,
+        labels=labels,
+        audio_values=audio_values,
+        audio_token_start_idx=audio_token_start_idx,
+        audio_token_len=audio_token_len,
+    )
+
+    # Optimization step
+    state.optimizer.zero_grad()
+    loss.backward()
+    grad_norm = torch.nn.utils.clip_grad_norm_(state.model.parameters(), 0.3)
+    state.optimizer.step()
+    state.scheduler.step()
+
+    return state, loss.item(), grad_norm.item()
+
+
+def calculate_throughput(duration: float, batch: dict, hz: float) -> float:
+    total_tokens = batch["audio_emb"].size(1) * batch["audio_emb"].size(0)
+    seconds_of_audio = total_tokens / hz
+    return seconds_of_audio / duration
+
+
+def cleanup():
+    utils.rank_0_only(wandb.finish)()
+    utils.distributed_only(dist.destroy_process_group)()  # type: ignore
+
+
+def init_wandb(model: UltravoxModel, config: MyUltravoxTrainConfig) -> None:
+    wandb.init(
+        config=config.model_dump()
+        | {"model_config": utils.unwrap_model(model).config.to_dict()},
+        id=config.run_id,
+        resume="allow",
+        dir=utils.get_log_dir(),
+        project=config.wandb_project_name,
+        name=config.run_name,
+    )
+    if config.watch_every is not None:
+        wandb.watch(model, log_freq=config.watch_every)
+
+
+def log_metrics(state: TrainState, stats: dict[str, float]) -> None:
+    stats_tensor = torch.tensor(list(stats.values()), device=utils.get_device())  # type: ignore
+    utils.distributed_only(dist.all_reduce)(stats_tensor, op=dist.ReduceOp.SUM)  # type: ignore
+    stats_tensor = stats_tensor / stats_tensor[-1]
+    stats = {k: v for k, v in zip(stats.keys(), stats_tensor.tolist())}
+    stats = {f"ultravox/{k}": v for k, v in stats.items() if k != "count"} | {
+        "ultravox/current_lr": state.scheduler.get_last_lr()[0]
+    }
+
+    utils.rank_0_only(wandb.log)(stats, step=state.step)
+
+
+def create_loader(
+    dataset: MyUltravoxDataset, config: MyUltravoxTrainConfig, **kwargs
+) -> torch.utils.data.DataLoader:  # type: ignore
+    loader_args = {
+        "batch_size": config.batch_size,
+        "num_workers": config.num_workers,
+        "pin_memory": True,
+    }
+    loader_args.update(kwargs)
+    return torch.utils.data.DataLoader(dataset, **loader_args)  # type: ignore
+
+
 def compute_loss(
     ultravox: UltravoxModel,
     input_ids: torch.Tensor,
@@ -206,12 +317,10 @@ def train(config: MyUltravoxTrainConfig) -> None:
         state.train_dataset.processor.tokenizer
     )
 
-    train_loader = iter(
-        create_loader(
-            state.train_dataset,
-            config=config,
-            collate_fn=data_collator,
-        )
+    train_loader = create_loader(
+        state.train_dataset,
+        config=config,
+        collate_fn=data_collator,
     )
 
     stats = {
@@ -220,60 +329,49 @@ def train(config: MyUltravoxTrainConfig) -> None:
         "count": 0.0,
     }
 
-    train_bar = tqdm.trange(
-        len(state.train_dataset) - state.step,
-        initial=state.step,
-        total=config.max_steps,
-        colour="blue",
-        disable=config.rank > 0,
-    )
+    while True:
+        for batch in tqdm.tqdm(train_loader, colour="blue"):
+            state = state._replace(step=state.step + 1)
+            state, loss, norm = train_step(state, batch=batch, config=config)
 
-    for _ in train_bar:
-        try:
-            batch = next(train_loader)
-        except StopIteration:
-            continue
+            stats["count"] += 1
+            stats["train_loss"] += loss
+            stats["grad_norm"] += norm
 
-        state = state._replace(step=state.step + 1)
-        state, loss, norm = train_step(state, batch=batch, config=config)
+            print(f"loss: {loss}")
 
-        stats["count"] += 1
-        stats["train_loss"] += loss
-        stats["grad_norm"] += norm
+            if state.step % 5 == 0:
+                log_metrics(state, stats=stats)
+                stats = {k: 0.0 for k in stats}
 
-        train_bar.set_description(f"loss: {loss:.2f}")
-        if state.step % 50 == 0:
-            log_metrics(state, stats=stats)
-            stats = {k: 0.0 for k in stats}
+            if config.save_every and state.step % config.save_every == 0:
+                utils.rank_0_only(save_train_state)(state, config=config)
 
-        if config.save_every and state.step % config.save_every == 0:
-            utils.rank_0_only(save_train_state)(state, config=config)
+            if config.push_every and state.step % config.push_every == 0:
+                model = utils.unwrap_model(state.model)
+                utils.rank_0_only(push_to_hub)(
+                    model,
+                    state.train_dataset.processor,
+                    config=config,
+                    step=state.step,
+                )
 
-        if config.push_every and state.step % config.push_every == 0:
-            model = utils.unwrap_model(state.model)
-            utils.rank_0_only(push_to_hub)(
-                model,
-                state.train_dataset.processor,
-                config=config,
-                step=state.step,
-            )
+            if config.test_every and state.step % config.test_every == 0:
+                test(
+                    utils.unwrap_model(state.model),
+                    step=state.step,
+                    config=config,
+                    description="evaluation_default",
+                )
 
-        if config.test_every and state.step % config.test_every == 0:
-            test(
-                utils.unwrap_model(state.model),
-                step=state.step,
-                config=config,
-                description="evaluation_default",
-            )
-
-        if state.step >= config.max_steps:
-            utils.pprint("\nmax steps reached, exiting...", color="bold red")
-            test(
-                utils.unwrap_model(state.model),
-                step=state.step,
-                config=config,
-            )
-            break
+            if state.step >= config.max_steps:
+                utils.pprint("\nmax steps reached, exiting...", color="bold red")
+                test(
+                    utils.unwrap_model(state.model),
+                    step=state.step,
+                    config=config,
+                )
+                break
 
         utils.distributed_only(dist.barrier)()
 
