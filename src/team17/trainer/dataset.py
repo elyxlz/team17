@@ -11,10 +11,9 @@ from team17.modeling.processor import UltravoxProcessor
 class MyUltravoxDataset(Dataset):
     def __init__(
         self,
-        data_dir: str,
         processor: UltravoxProcessor,
+        data_dir: str = "./data/processed",
         train_on_inputs: bool = False,
-        include_alt_fields: bool = False,
         inference_mode: bool = False,
     ):
         """
@@ -24,13 +23,11 @@ class MyUltravoxDataset(Dataset):
             data_dir: Directory containing processed data (with subdirs)
             processor: UltravoxProcessor for processing text and audio
             train_on_inputs: If True, include prompt tokens in loss calculation
-            include_alt_fields: If True, include transcript-based fields for KL loss
             inference_mode: If True, only use input message (for generation)
         """
         super().__init__()
         self.processor = processor
         self.train_on_inputs = train_on_inputs
-        self.include_alt_fields = include_alt_fields
         self.inference_mode = inference_mode
         if self.inference_mode:
             self.train_on_inputs = True
@@ -65,10 +62,6 @@ class MyUltravoxDataset(Dataset):
             messages=conv_data["messages"],
             audio=audio,
             sample_rate=conv_data["sample_rate"],
-            # Include transcript if we're using KL loss
-            audio_transcript=conv_data["messages"][0]["transcript"]
-            if self.include_alt_fields
-            else None,
         )
 
     def __len__(self) -> int:
@@ -122,28 +115,6 @@ class MyUltravoxDataset(Dataset):
                 sampling_rate=sample.sample_rate,
             )["input_ids"].shape[-1]
             labels[:input_token_len] = -100
-
-        # Add alt fields if using KL loss
-        if self.include_alt_fields and sample.audio_transcript:
-            alt_text = text.replace("<|audio|>", sample.audio_transcript)
-            alt_inputs = self.processor(
-                text=alt_text,
-                audio=None,
-                return_tensors="pt",
-            )
-            alt_input_ids = alt_inputs["input_ids"].squeeze_(0)
-            alt_inputs["attention_mask"].squeeze_(0)
-
-            alt_labels = alt_input_ids.clone()
-            if not self.train_on_inputs:
-                alt_input_token_len = (
-                    input_token_len + len(alt_input_ids) - len(input_ids)
-                )
-                alt_labels[:alt_input_token_len] = -100
-
-            inputs["alt_input_ids"] = alt_input_ids
-            inputs["alt_attention_mask"] = alt_inputs["attention_mask"]
-            inputs["alt_labels"] = alt_labels
 
         return {
             **inputs,

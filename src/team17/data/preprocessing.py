@@ -315,6 +315,8 @@ def process_audio_chunks(config: PreprocessingConfig):
             "conversation": {"messages": messages, "sample_rate": config.sample_rate},
         }
 
+        breakpoint()
+
         _save_processed_data(processed_data, filename, config.output_path)
 
 
