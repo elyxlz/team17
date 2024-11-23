@@ -51,7 +51,7 @@ class MyUltravoxDataset(td.IterableDataset):
                     npy_files.append(os.path.join(root, file))
         return npy_files
 
-    def _get_fake_item(self) -> dict[str, torch.Tensor]:
+    def _get_fake_item(self) -> dict[str, torch.Tensor | str]:
         fake_text = "This is a fake sample text"
         text_tokens = self._tokenize_text(fake_text)
 
@@ -73,7 +73,7 @@ class MyUltravoxDataset(td.IterableDataset):
             add_special_tokens=True,
         )
 
-    def _get_item(self, file_path: str) -> dict[str, torch.Tensor]:
+    def _get_item(self, file_path: str) -> dict[str, torch.Tensor | str]:
         try:
             npy_data = np.load(file_path, allow_pickle=True)
             item: dict[str, torch.Tensor] = {}
@@ -97,6 +97,7 @@ class MyUltravoxDataset(td.IterableDataset):
             item["attention_mask"] = text_tokens["attention_mask"][0]
 
             return item
+
         except Exception as e:
             print(f"Error loading file {file_path}: {str(e)}")
             return self._get_fake_item()

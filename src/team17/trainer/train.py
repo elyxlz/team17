@@ -129,23 +129,21 @@ def save_train_state(state: TrainState, config: MyUltravoxTrainConfig) -> None:
 
 def prepare_batch(
     batch: dict, device: torch.device
-) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+) -> tuple[torch.Tensor, torch.Tensor]:
     input_ids = batch["input_ids"].to(device)
-    attention_mask = batch["attention_mask"].to(device)
     audio_emb = batch["audio_emb"].to(device, torch.bfloat16)
-    return input_ids, attention_mask, audio_emb
+    return input_ids, audio_emb
 
 
+# TODO: do tower shenanigans and stuff here
 def compute_loss(
     ultravox: torch.nn.Module,
     input_ids: torch.Tensor,
-    attention_mask: torch.Tensor,
     audio_emb: torch.Tensor,
 ) -> torch.Tensor:
     loss = ultravox(
         input_ids=input_ids,
         audio_emb=audio_emb,
-        input_ids_attention_mask=attention_mask,
     ).float()
     return loss
 
@@ -155,13 +153,8 @@ def train_step(
 ) -> tuple[TrainState, float, float]:
     device = utils.get_device()
 
-    input_ids, attention_mask, audio_emb = prepare_batch(batch, device)
-    loss = compute_loss(
-        state.model,
-        input_ids=input_ids,
-        attention_mask=attention_mask,
-        audio_emb=audio_emb,
-    )
+    input_ids, audio_emb = prepare_batch(batch, device)
+    loss = compute_loss(state.model, input_ids=input_ids, audio_emb=audio_emb)
 
     state.optimizer.zero_grad()
     loss.backward()
@@ -206,10 +199,7 @@ def log_metrics(state: TrainState, stats: dict[str, float]) -> None:
         "ultravox/current_lr": state.scheduler.get_last_lr()[0]
     }
 
-    utils.rank_0_only(wandb.log)(
-        stats,
-        step=state.step,
-    )
+    utils.rank_0_only(wandb.log)(stats, step=state.step)
 
 
 def create_loader(
