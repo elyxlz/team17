@@ -115,6 +115,9 @@ def get_video_duration(url: str) -> int:
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         try:
             info = ydl.extract_info(url, download=False)
+            if info is None:
+                print(f"No information found for {url}")
+                return 0
             duration = int(info["duration"])
             print(f"Duration for {url}: {duration} seconds")
             return duration

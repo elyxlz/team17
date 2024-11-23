@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { VoiceAssistant } from './components/VoiceAssistant';
-import Register from './components/Register';
 import Login from './components/Login';
 import ProtectedRoute from './components/ProtectedRoute';
 import { Conversations } from './pages/Conversations';
@@ -36,7 +35,7 @@ function App() {
           element={
             isAuthenticated 
               ? <Navigate to="/" /> 
-              : <Login setIsAuthenticated={setIsAuthenticated} />
+              : <Login />
           } 
         />
         <Route

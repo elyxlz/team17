@@ -8,10 +8,6 @@ interface HistoryItem {
   response: AIResponse;
 }
 
-interface GroupedConversation {
-  startTime: string;
-  messages: HistoryItem[];
-}
 
 interface ChatSession {
   sessionId: string;

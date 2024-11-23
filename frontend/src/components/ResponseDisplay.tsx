@@ -14,7 +14,7 @@ const ResponseDisplay = ({ response, isVisible }: ResponseDisplayProps) => {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -20 }}
-      className="max-w-md w-full bg-white rounded-lg shadow-lg p-6 mb-8 max-w-[750px]"
+      className="w-full bg-white rounded-lg shadow-lg p-6 mb-8 max-w-[750px]"
     >
       <p className="text-gray-800 mb-4">{response.text}</p>
       
