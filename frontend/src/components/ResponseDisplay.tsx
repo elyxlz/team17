@@ -1,39 +1,38 @@
 import { motion } from 'framer-motion';
+import type { AIResponse } from '../utils/openai';
 
 interface ResponseDisplayProps {
-  response: {
-    text: string;
-    audioUrl?: string;
-  } | null;
+  response: AIResponse | null;
   isVisible: boolean;
 }
 
-export default function ResponseDisplay({ response, isVisible }: ResponseDisplayProps) {
-  console.log('ResponseDisplay props:', { response, isVisible });
-  
-  if (!response || !isVisible) {
-    console.log('Returning null because:', { noResponse: !response, notVisible: !isVisible });
-    return null;
-  }
+const ResponseDisplay = ({ response, isVisible }: ResponseDisplayProps) => {
+  if (!isVisible || !response) return null;
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: isVisible ? 1 : 0, y: isVisible ? 0 : 20 }}
-      transition={{ duration: 0.5 }}
-      className="w-full max-w-2xl mt-8 p-6 bg-white rounded-lg shadow-lg"
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -20 }}
+      className="max-w-md w-full bg-white rounded-lg shadow-lg p-6 mb-8 max-w-[750px]"
     >
-      <div className="flex items-start justify-between gap-4">
-        <p className="text-gray-800 text-lg leading-relaxed flex-1 flex flex-col gap-4">
-          {response.text}
-        {response.audioUrl && (
-          <audio controls className="w-full">
+      <p className="text-gray-800 mb-4">{response.text}</p>
+      
+      {response.audioUrl && (
+        <div className="mt-4">
+          <audio 
+            controls 
+            className="w-full"
+            // Cleanup the URL when component unmounts
+            onEnded={() => URL.revokeObjectURL(response.audioUrl!)}
+          >
             <source src={response.audioUrl} type="audio/wav" />
+            Your browser does not support the audio element.
           </audio>
-        )}
-        </p>
-
-      </div>
+        </div>
+      )}
     </motion.div>
   );
-}
+};
+
+export default ResponseDisplay;

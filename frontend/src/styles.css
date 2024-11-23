@@ -1,4 +1,17 @@
- .animated-blob {
+.App {
+    text-align: center;
+    position: relative;
+    height: 100vh;
+    overscroll-behavior: contain;
+}
+
+.grosse_div {
+    position: relative;
+    top: 600px;
+    min-height: calc(100vh - 600px);
+}
+
+.animated-blob {
     position: fixed;
     top: 50%;
     left: 50%;
@@ -18,30 +31,18 @@
     z-index: 0;
 }
 
-.grosse_div {
-position: relative;
-top: 600px;
-}
-
- .App {
-    text-align: center;
+.text-container {
+    color: rgba(19, 6, 48, 0.925);
     position: relative;
-    height: 100vh;
-    }  
-    
-    .text-container {
-        color: rgba(19, 6, 48, 0.925);
-        position: relative;
-        z-index: 100;
-        text-align: center;
-        font-family: system-ui;
-        font-size: 40px;
-        font-weight: 350;
-        letter-spacing: 1px;
-        line-height: 1.2;
-        top: 450px;
-        
-} 
+    z-index: 100;
+    text-align: center;
+    font-family: system-ui;
+    font-size: 40px;
+    font-weight: 350;
+    letter-spacing: 1px;
+    line-height: 1.2;
+    top: 450px;
+}
 
 @keyframes blobAnimation {
     0%,
@@ -64,4 +65,24 @@ top: 600px;
         0 -2vmin 7vmin purple inset, 0 0 3vmin Thistle, 0 5vmin 4vmin Orchid,
         2vmin -2vmin 15vmin MediumSlateBlue, 0 0 7vmin MediumOrchid;
     }
-  } 
+  }
+
+.register-page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: 100vh;
+}
+
+.voice-assistant-container {
+  flex: 1;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.register-prompt {
+  padding: 20px;
+  text-align: center;
+} 

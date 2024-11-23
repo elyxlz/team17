@@ -1,53 +1,23 @@
 import { useState, useEffect } from 'react';
-import { Brain } from 'lucide-react';
-import { AnimatePresence, motion } from 'framer-motion';
-import { BrowserRouter as Router, Routes, Route, useNavigate, Navigate } from 'react-router-dom';
-import VoiceButton from './components/VoiceButton';
-import ResponseDisplay from './components/ResponseDisplay';
-import ErrorMessage from './components/ErrorMessage';
-import { processMessageWithOpenAI } from './utils/openai';
-import { processMessageWithLocal } from './utils/local';
-import { ConfigError } from './utils/config';
-import Register from './components/Register.tsx';
-import Login from './components/Login.tsx';
-import ProtectedRoute from './components/ProtectedRoute.tsx';
-import { ChatHistory } from './components/ChatHistory';
-import { Conversations } from './pages/Conversations.tsx';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { VoiceAssistant } from './components/VoiceAssistant';
+import Register from './components/Register';
+import Login from './components/Login';
+import ProtectedRoute from './components/ProtectedRoute';
+import { Conversations } from './pages/Conversations';
+import NonRegisterHP from './pages/NonRegisterHP';
 import "./styles.css";
-import { Header } from './components/Header';
-import { AnimatedText } from './components/AnimatedText';
-import { AnimatedBlob } from './components/AnimatedBlob';
-import { Footer } from './components/Footer';
-import { ScrollIndicator } from './components/ScrollIndicator';
 
-// Update this interface to match the one from openai.ts
-interface AIResponse {
-  text: string;
-  audioUrl?: string;  // Optional property as defined in openai.ts
-}
-
-function VoiceAssistant() {
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [response, setResponse] = useState<AIResponse | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const navigate = useNavigate();
-  const [history, setHistory] = useState<Array<{
-    timestamp: string;
-    transcription: string;
-    response: AIResponse;
-  }>>(() => {
-    const saved = localStorage.getItem('chatHistory');
-    return saved ? JSON.parse(saved) : [];
-  });
-  const [scrollY, setScrollY] = useState(0);
-  const text = "Your own private therapist to prevent depression.".split(" ");
+function App() {
+  const [isAuthenticated, setIsAuthenticated] = useState(localStorage.getItem('isAuthenticated') === 'true');
 
   useEffect(() => {
-    const handleScroll = () => {
-      setScrollY(window.scrollY);
+    const handleStorageChange = () => {
+      setIsAuthenticated(localStorage.getItem('isAuthenticated') === 'true');
     };
-    window.addEventListener("scroll", handleScroll);
-    return () => window.removeEventListener("scroll", handleScroll);
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
   const isAuthenticated = localStorage.getItem('isAuthenticated') === 'true';
@@ -63,8 +33,7 @@ function VoiceAssistant() {
     setIsProcessing(true);
 
     try {
-      // const aiResponse = await processMessageWithOpenAI(audioBlob);
-      const aiResponse = await processMessageWithLocal(audioBlob);
+      const aiResponse = await processMessageWithOpenAI(audioBlob);
       setResponse(aiResponse);
 
       const newHistoryItem = {
@@ -151,17 +120,17 @@ function App() {
         <Route 
           path="/register" 
           element={
-            localStorage.getItem('isAuthenticated') === 'true' 
+            isAuthenticated 
               ? <Navigate to="/" /> 
-              : <Register />
+              : <NonRegisterHP />
           } 
         />
         <Route 
           path="/login" 
           element={
-            localStorage.getItem('isAuthenticated') === 'true' 
+            isAuthenticated 
               ? <Navigate to="/" /> 
-              : <Login />
+              : <Login setIsAuthenticated={setIsAuthenticated} />
           } 
         />
         <Route

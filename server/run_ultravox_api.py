@@ -1,8 +1,9 @@
 import logging
-import uuid
-from fastapi.middleware.cors import CORSMiddleware
 import shutil
+import uuid
+
 from fastapi import FastAPI, File, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 from ultravox.data.data_sample import VoiceSample
 from ultravox.inference.ultravox_infer import UltravoxInference
 

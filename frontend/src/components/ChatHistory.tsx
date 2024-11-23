@@ -19,12 +19,12 @@ export function ChatHistory({ history }: ChatHistoryProps) {
     startTime: new Date(history[0].timestamp).toLocaleString(),
     messages: history
   };
-
+  
   const firstMessage = history[history.length - 1];
 
   return (
-    <div className="sticky bottom-0 w-full flex justify-center pb-4 px-4 bg-gradient-to-t from-white via-white to-transparent">
-      <div className="w-full max-w-2xl">
+    <div className="w-full flex justify-center pb-4 px-4 bg-gradient-to-t from-white via-white to-transparent sticky top-[600px]">
+      <div className="w-full max-w-[750px]">
         <h3 className="align-left text-xl font-semibold text-gray-800 mb-4 text-left">Recent Conversation</h3>
         <div className="bg-white rounded-lg shadow-sm p-4 border border-gray-200">
           <div className="flex justify-between items-center mb-2">
