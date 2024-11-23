@@ -80,14 +80,6 @@ def create_lora_config(
 def init_train_state(config: MyUltravoxTrainConfig) -> TrainState:
     device = utils.get_device()
 
-    # modules = [
-    #     n
-    #     for n, p in model.named_modules()
-    #     if isinstance(p, torch.nn.Linear)
-    #     and "head" not in n
-    #     # and "cond_net" not in n
-    #     and "emb" not in n
-    # ]
     #
     # lora_config = LoraConfigSimplified(
     #     r=config.lora_r,
@@ -96,29 +88,20 @@ def init_train_state(config: MyUltravoxTrainConfig) -> TrainState:
     # )
 
     if config.ultravox_pretrained_path is not None:
-        model = UltravoxModel.from_pretrained(
-            config.ultravox_pretrained_path,
-            text_model_lora_config=lora_config,
-            **config.ultravox_kwargs,
-        )
+        model = UltravoxModel.from_pretrained(config.ultravox_pretrained_path)
         # model = UltravoxModel(UltravoxConfig(**config.ultravox_kwargs))
     else:
         model = UltravoxModel(
             UltravoxConfig(
-                # text_model_id="k-l-lambda/Llama-3.2-100M",
-                # text_model_id="XR17/antlm-llama-ntp-100m",
                 audio_model_id="openai/whisper-tiny",
                 text_config=tr.LlamaConfig(
                     vocab_size=128128, hidden_size=64, num_hidden_layers=1
                 ).to_dict(),  # **config.ultravox_kwargs),
                 audio_latency_block_size=None,
-                # audio_config=tr.WhisperConfig.from_pretrained("openai/whisper-small"),
-                # text_model_lora_config=lora_config,
             )
         )
 
     model.set_loss_config(LossConfig(LossFunction.CrossEntropy))
-
     # Prepare model for LoRA
     modules = [
         n
@@ -128,8 +111,8 @@ def init_train_state(config: MyUltravoxTrainConfig) -> TrainState:
         # and "cond_net" not in n
         and "emb" not in n
     ]
-    lora_config = create_lora_config(config, modules=modules)  # , to_save=to_save)
-    model = peft.get_peft_model(model, lora_config)  # type: ignore
+    # lora_config = create_lora_config(config, modules=modules)  # , to_save=to_save)
+    # model = peft.get_peft_model(model, lora_config)  # type: ignore
 
     model = model.to(device, torch.bfloat16)
 
@@ -168,6 +151,9 @@ def init_train_state(config: MyUltravoxTrainConfig) -> TrainState:
     processor.tokenizer.padding_side = "right"
     processor.tokenizer.pad_token = processor.tokenizer.eos_token
     train_dataset = MyUltravoxDataset(processor)
+
+    breakpoint()
+    processor.push_to_hub("banana1234")
 
     return TrainState(
         step=0,
@@ -226,7 +212,7 @@ def compute_loss(
         audio_values=audio_values,
         audio_token_start_idx=audio_token_start_idx,
         audio_token_len=audio_token_len,
-    )
+    ).loss
     return loss
 
 
@@ -250,7 +236,6 @@ def train_step(
         audio_token_start_idx=audio_token_start_idx,
         audio_token_len=audio_token_len,
     )
-    breakpoint()
 
     # Optimization step
     state.optimizer.zero_grad()
@@ -378,7 +363,7 @@ def train(config: MyUltravoxTrainConfig) -> None:
     }
 
     train_bar = tqdm.trange(
-        config.max_steps - state.step,
+        len(state.train_dataset) - state.step,
         initial=state.step,
         total=config.max_steps,
         colour="blue",

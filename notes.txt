@@ -1,4 +1,4 @@
-- make sure dataset from preprocessed works
-- make sure model trains
+- make sure dataset from preprocessed works x
+- make sure model trains x
 - check lora
 
