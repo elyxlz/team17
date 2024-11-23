@@ -1,8 +1,8 @@
-import datetime
 import dataclasses
-import dotenv
+import datetime
 import typing
 
+import dotenv
 import torch
 import torch.distributed as dist
 import torch.nn.parallel as torch_pl
@@ -12,10 +12,9 @@ import wandb
 
 from team17.modeling.model import UltravoxConfig, UltravoxModel
 from team17.modeling.processor import UltravoxProcessor
-from team17.trainer import utils
-from team17.trainer import lora
+from team17.trainer import lora, utils
 from team17.trainer.config import MyUltravoxTrainConfig
-from team17.trainer.dataset import MyUltravoxDataset, DataCollatorForSeq2SeqWithAudio
+from team17.trainer.dataset import DataCollatorForSeq2SeqWithAudio, MyUltravoxDataset
 from team17.trainer.test import test
 
 dotenv.load_dotenv()
@@ -372,7 +371,17 @@ def train(config: MyUltravoxTrainConfig) -> None:
                     step=state.step,
                     config=config,
                 )
-                break
+
+                model = utils.unwrap_model(state.model)
+                utils.rank_0_only(push_to_hub)(
+                    model,
+                    state.train_dataset.processor,
+                    config=config,
+                    step=state.step,
+                )
+                import sys
+
+                sys.exit(0)
 
         utils.distributed_only(dist.barrier)()
 

@@ -1,8 +1,8 @@
-from transformers.convert_slow_tokenizer import generate_merges
-from team17.trainer.train import MyUltravoxTrainConfig, train
 import os
 
 import wandb.util
+
+from team17.trainer.train import MyUltravoxTrainConfig, train
 
 os.environ["RUN_ID"] = wandb.util.generate_id()
 
