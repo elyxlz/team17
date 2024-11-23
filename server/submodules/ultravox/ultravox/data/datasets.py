@@ -15,9 +15,7 @@ import torch.nn.functional as F
 import transformers
 from torch.utils import data
 
-from ultravox.data import data_sample
-from ultravox.data import text_proc
-from ultravox.data import types
+from ultravox.data import data_sample, text_proc, types
 
 # TODO(juberti): set these in the environment so they don't need to be hard-coded here.
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "service_account.json"

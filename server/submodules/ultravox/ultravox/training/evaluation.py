@@ -9,8 +9,7 @@ import numpy as np
 from torch.utils import data
 
 from ultravox import data as datasets
-from ultravox.evaluation import eval
-from ultravox.evaluation import eval_types
+from ultravox.evaluation import eval, eval_types
 from ultravox.inference import infer
 from ultravox.training import ddp_utils
 

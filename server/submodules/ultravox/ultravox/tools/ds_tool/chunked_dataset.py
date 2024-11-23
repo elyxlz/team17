@@ -11,16 +11,12 @@ from typing import Optional, Union
 import datasets
 import huggingface_hub
 from datasets.data_files import sanitize_patterns
-from datasets.info import DatasetInfo
-from datasets.info import DatasetInfosDict
+from datasets.info import DatasetInfo, DatasetInfosDict
 from datasets.naming import _split_re
-from datasets.splits import SplitDict
-from datasets.splits import SplitInfo
+from datasets.splits import SplitDict, SplitInfo
 from datasets.utils import logging
 from datasets.utils.metadata import MetadataConfigs
-from datasets.utils.py_utils import asdict
-from datasets.utils.py_utils import glob_pattern_to_regex
-from datasets.utils.py_utils import string_to_dict
+from datasets.utils.py_utils import asdict, glob_pattern_to_regex, string_to_dict
 from huggingface_hub.hf_api import RepoFile
 
 logger = logging.get_logger(__name__)
@@ -376,8 +372,7 @@ class ChunkedDataset(datasets.Dataset):
             )
             for i in range(0, num_commits):
                 operations = additions[
-                    i
-                    * datasets.config.UPLOADS_MAX_NUMBER_PER_COMMIT : (i + 1)
+                    i * datasets.config.UPLOADS_MAX_NUMBER_PER_COMMIT : (i + 1)
                     * datasets.config.UPLOADS_MAX_NUMBER_PER_COMMIT
                 ] + (deletions if i == 0 else [])
                 commit_info = api.create_commit(

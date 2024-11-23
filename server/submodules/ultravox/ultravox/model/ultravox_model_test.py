@@ -1,7 +1,6 @@
 import pytest
 import torch
 from transformers import WhisperConfig
-
 from ultravox.model import ultravox_model
 
 

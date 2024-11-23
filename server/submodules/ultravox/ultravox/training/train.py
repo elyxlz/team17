@@ -19,14 +19,15 @@ import wandb
 import wandb.sdk
 
 from ultravox import data as datasets
-from ultravox.model import data_processing
-from ultravox.model import ultravox_config
-from ultravox.model import ultravox_model
-from ultravox.model import ultravox_pipeline
-from ultravox.model import ultravox_processing
-from ultravox.model import wandb_utils
-from ultravox.training import config_base
-from ultravox.training import ddp_utils
+from ultravox.model import (
+    data_processing,
+    ultravox_config,
+    ultravox_model,
+    ultravox_pipeline,
+    ultravox_processing,
+    wandb_utils,
+)
+from ultravox.training import config_base, ddp_utils
 from ultravox.training.helpers import prefetch_weights
 
 
@@ -139,8 +140,8 @@ def train(args: config_base.TrainConfig):
     with model_load_context:
         model = ultravox_model.UltravoxModel(config)
 
-    assert model.get_input_embeddings().num_embeddings == len(
-        text_tokenizer
+    assert (
+        model.get_input_embeddings().num_embeddings == len(text_tokenizer)
     ), f"Model and tokenizer mismatch: {model.get_input_embeddings().num_embeddings} != {len(text_tokenizer)}"
 
     model.language_model.config.use_cache = False

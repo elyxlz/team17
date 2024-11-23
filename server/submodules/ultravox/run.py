@@ -1,6 +1,7 @@
-import transformers
 import time
+
 import librosa
+import transformers
 
 pipe = transformers.pipeline(
     model="fixie-ai/ultravox-v0_3-llama-3_2-1b",

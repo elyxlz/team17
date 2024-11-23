@@ -1,17 +1,18 @@
 import dataclasses
 from typing import Dict, List, Optional
 
-from ultravox.data import datasets
-from ultravox.data import types
-from ultravox.data.configs import boolq
-from ultravox.data.configs import commonvoice
-from ultravox.data.configs import covost2
-from ultravox.data.configs import gigaspeech
-from ultravox.data.configs import librispeech
-from ultravox.data.configs import multilingual_librispeech
-from ultravox.data.configs import peoplespeech
-from ultravox.data.configs import voxpopuli
-from ultravox.data.configs import wenetspeech
+from ultravox.data import datasets, types
+from ultravox.data.configs import (
+    boolq,
+    commonvoice,
+    covost2,
+    gigaspeech,
+    librispeech,
+    multilingual_librispeech,
+    peoplespeech,
+    voxpopuli,
+    wenetspeech,
+)
 
 DATASET_MAP: Dict[str, types.DatasetConfig] = {}
 

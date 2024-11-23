@@ -4,10 +4,7 @@ import os
 from typing import List, Optional, Union, overload
 
 import openai
-from tenacity import retry
-from tenacity import stop_after_attempt
-from tenacity import wait_fixed
-
+from tenacity import retry, stop_after_attempt, wait_fixed
 from ultravox.tools.ds_tool import tts
 
 
