@@ -62,7 +62,7 @@ def init_model(config: MyUltravoxTrainConfig):
     skip_modules = ["head", "emb", "cond_net"]  # Modules to skip for LoRA
     lora.add_lora(model, lora_rank=config.lora_r, skip=skip_modules)
 
-    model = model.to(device, torch.bfloat16)
+    model = model.to(device, torch.float32)
     return model
 
 
@@ -136,7 +136,7 @@ def prepare_batch(
     """Prepare batch by moving tensors to device"""
     input_ids = batch["input_ids"].to(device)
     labels = batch["labels"].to(device)
-    audio_values = batch["audio_values"].to(device, dtype=torch.bfloat16)
+    audio_values = batch["audio_values"].to(device, dtype=torch.float32)
     audio_token_start_idx = batch["audio_token_start_idx"].to(device)
     audio_token_len = batch["audio_token_len"].to(device)
     return input_ids, labels, audio_values, audio_token_start_idx, audio_token_len

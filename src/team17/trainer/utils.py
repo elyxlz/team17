@@ -111,7 +111,7 @@ def set_seed(seed: int) -> None:
     torch.manual_seed(seed)
 
 
-dtype_map = {"fp16": torch.float16, "bf16": torch.bfloat16, "fp32": torch.float32}
+dtype_map = {"fp16": torch.float16, "bf16": torch.float32, "fp32": torch.float32}
 
 
 def load_checkpoint(path: str, cpu: bool = False) -> dict:
@@ -181,7 +181,7 @@ def deterministic_flags() -> None:
 
 def has_bf16_params(model: torch.nn.Module) -> str:
     for p in model.parameters():
-        if p.dtype == torch.bfloat16:
+        if p.dtype == torch.float32:
             return "Model has bf16 parameters"
         else:
             return "Model has no bf16 parameters"
