@@ -31,9 +31,9 @@ config = MyUltravoxTrainConfig(
     # Training parameters
     lr=5e-5,
     warmup_steps=20,
-    max_steps=10_000,
+    max_steps=500,
     # Monitoring intervals
-    test_every=100,
+    test_every=None,
     save_every=None,
     push_every=None,
     watch_every=None,

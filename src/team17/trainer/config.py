@@ -38,7 +38,7 @@ class MyUltravoxTrainConfig(utils.BaseConfig):
 
     ## logging and checkpointing
     save_every: int | None
-    push_every: int | None
+    push_every: None
     watch_every: int | None
     ckpt_path: str | None = None
     wandb_project_name: str = "ultravox"
