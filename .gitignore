@@ -192,3 +192,4 @@ chrome-user-data
 *.swp
 *.swo
 .DS_STORE
+logs/
