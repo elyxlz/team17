@@ -167,7 +167,7 @@ def get_num_speakers(segments: list) -> int:
     return num_speakers
 
 
-def _save_processed_data(processed_data, filename, output_path):
+def _save_processed_data(processed_data, filename: str, output_path: str) -> None:
     subdir = filename[:2]
     full_output_path = os.path.join(output_path, subdir)
     os.makedirs(full_output_path, exist_ok=True)
@@ -221,7 +221,7 @@ def process_audio_chunks(config: PreprocessingConfig):
 
     for batch in tqdm(dl):
         waveform = batch["waveform"]
-        filename = batch["filename"]
+        filename = batch["filename"][0]
 
         audio = waveform.squeeze().numpy()
 
@@ -330,9 +330,10 @@ def process_audio_chunks(config: PreprocessingConfig):
 
         processed_data = {"text": text, "audio_emb": embeddings.cpu().numpy()}
 
-        save_executor.submit(
-            _save_processed_data, processed_data, filename, config.output_path
-        )
+        # save_executor.submit(
+        #     _save_processed_data, processed_data, filename, config.output_path
+        # )
+        _save_processed_data(processed_data, filename, config.output_path)
 
     save_executor.shutdown(wait=True)
 
