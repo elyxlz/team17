@@ -2,11 +2,8 @@ from typing import Optional
 
 import transformers
 
-from ultravox.inference import infer
-from ultravox.inference import utils
-from ultravox.model import ultravox_model
-from ultravox.model import ultravox_processing
-from ultravox.model import wandb_utils
+from ultravox.inference import infer, utils
+from ultravox.model import ultravox_model, ultravox_processing, wandb_utils
 
 
 class UltravoxInference(infer.LocalInference):

@@ -4,8 +4,7 @@ from typing import IO
 
 import simple_parsing
 
-from ultravox.evaluation import eval
-from ultravox.evaluation import eval_types
+from ultravox.evaluation import eval, eval_types
 
 
 @dataclasses.dataclass

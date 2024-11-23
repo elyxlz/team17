@@ -13,9 +13,7 @@ from transformers.models.whisper import modeling_whisper as whisper
 
 # We must use relative import in this directory to allow uploading to HF Hub
 # Even "from . import X" pattern doesn't work (undocumented and unclear why)
-from .ultravox_config import LossConfig
-from .ultravox_config import LossFunction
-from .ultravox_config import UltravoxConfig
+from .ultravox_config import LossConfig, LossFunction, UltravoxConfig
 
 
 class UltravoxModel(transformers.LlamaPreTrainedModel):
@@ -638,7 +636,7 @@ class ModifiedWhisperEncoder(
         # This masking ensures consistent behavior between training and inference
         # by preventing the model from attending to padding tokens in both cases
         attention_mask = None
-        if audio_len != None:
+        if audio_len is not None:
             audio_feature_len = self._get_feat_extract_output_lengths(audio_len)
             max_seq_len = hidden_states.shape[1]
             attention_mask = torch.arange(max_seq_len, device=hidden_states.device)[

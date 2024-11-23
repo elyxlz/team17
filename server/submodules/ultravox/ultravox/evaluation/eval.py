@@ -1,9 +1,11 @@
-from ultravox.evaluation import eval_types
-from ultravox.evaluation import gpt_eval_boolq
-from ultravox.evaluation import gpt_eval_conv
-from ultravox.evaluation import gpt_eval_instruct
-from ultravox.evaluation import string_based
-from ultravox.evaluation import wer
+from ultravox.evaluation import (
+    eval_types,
+    gpt_eval_boolq,
+    gpt_eval_conv,
+    gpt_eval_instruct,
+    string_based,
+    wer,
+)
 
 METRIC_REGISTRY = {
     "asr": wer.evaluate_answer_asr,

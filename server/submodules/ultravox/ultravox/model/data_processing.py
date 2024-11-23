@@ -1,7 +1,6 @@
 from typing import Any, Dict
 
 import numpy as np
-
 from ultravox import data as datasets
 from ultravox.model import ultravox_processing
 

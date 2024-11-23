@@ -6,14 +6,20 @@ import dotenv
 import numpy as np
 import pydantic_settings as pyds
 import torch
+import torch.nn.functional as F
 import torchaudio
-import transformers
-import whisperx
 from torch.utils.data import Dataset
 from tqdm import tqdm
 
 from team17 import utils
-from team17.whisper_encoder import ModifiedWhisperEncoder
+
+SUPPRESS = True
+
+with utils.SuppressLogger(SUPPRESS):
+    import transformers
+    import whisperx
+
+    from team17.whisper_encoder import ModifiedWhisperEncoder
 
 dotenv.load_dotenv()
 
@@ -25,66 +31,90 @@ class PreprocessingConfig(pyds.BaseSettings):
     transcription_model: str = "medium"  # Model for transcription
     embedding_model: str = "small"  # Model for embeddings
     compute_type: str = "float16"
-    inner_batch_size: int = 4
+    inner_batch_size: int = 8
     use_cuda: bool = torch.cuda.is_available()
-    chunk_frames: int = 16_000 * 20
+    chunk_frames: int = 16_000 * 60
     sample_rate: int = 16_000
-    max_save_workers: int = 16
+    num_workers: int = 8
+
+
+def _is_silent(waveform: torch.Tensor, thresh: float) -> bool:
+    rms = torch.sqrt(torch.mean(waveform**2, dim=0))
+    silent_samples = torch.sum(rms < thresh)
+    return (silent_samples.item() / rms.shape[0]) >= 0.9
 
 
 class AudioChunkDataset(Dataset):
     def __init__(
-        self, input_path: str, target_sample_rate: int, chunk_frames: int, seed: int
+        self,
+        input_path: str,
+        target_sample_rate: int,
+        chunk_frames: int,
+        silence_threshold: float = 0.01,
+        seed: int = 42,
     ) -> None:
         self.input_path = input_path
         self.target_sample_rate = target_sample_rate
         self.chunk_frames = chunk_frames
-        self.file_list = []
-        self._find_audio_files(input_path)
-
+        self.silence_threshold = silence_threshold
+        self.file_list = self._find_audio_files(input_path)
         random.seed(seed)
         random.shuffle(self.file_list)
+        self.file_list = list(set(self.file_list))
+        print(f"FOUND {len(self.file_list)} raw files")
 
     def _find_audio_files(self, directory):
+        file_list = []
         for root, _, files in os.walk(directory):
             for file in files:
                 if file.lower().endswith(
                     (".mp3", ".wav", ".flac", ".ogg", ".m4a", ".mp4", ".webm")
                 ):
-                    self.file_list.append(os.path.join(root, file))
+                    file_list.append(os.path.join(root, file))
+        return file_list
 
     def __len__(self):
         return len(self.file_list)
 
     def __getitem__(self, idx):
-        file_path = self.file_list[idx]
-        waveform, sample_rate = torchaudio.load(file_path)
+        try:
+            file_path = self.file_list[idx]
 
-        if sample_rate != self.target_sample_rate:
-            resampler = torchaudio.transforms.Resample(
-                sample_rate, self.target_sample_rate
+            # Load audio
+            waveform, sample_rate = torchaudio.load(file_path)
+
+            # Resample if needed
+            if sample_rate != self.target_sample_rate:
+                resampler = torchaudio.transforms.Resample(
+                    sample_rate, self.target_sample_rate
+                )
+                waveform = resampler(waveform)
+
+            # Convert to mono if needed
+            if waveform.shape[0] > 1:
+                waveform = torch.mean(waveform, dim=0, keepdim=True)
+
+            # Skip if audio is silent
+            if _is_silent(waveform, thresh=self.silence_threshold):
+                return self.__getitem__(idx + 1)
+
+            # Pad or cut to chunk_frames
+            if waveform.shape[1] < self.chunk_frames:
+                waveform = F.pad(waveform, (0, self.chunk_frames - waveform.shape[1]))
+            elif waveform.shape[1] > self.chunk_frames:
+                waveform = waveform[:, : self.chunk_frames]
+
+            duration = waveform.shape[1] / self.target_sample_rate
+
+            return dict(
+                waveform=waveform,
+                filename=os.path.basename(file_path),
+                duration=duration,
             )
-            waveform = resampler(waveform)
 
-        # Convert to mono if needed
-        if waveform.shape[0] > 1:
-            waveform = torch.mean(waveform, dim=0, keepdim=True)
-
-        # Pad or cut to chunk_frames
-        if waveform.shape[1] < self.chunk_frames:
-            waveform = torch.nn.functional.pad(
-                waveform, (0, self.chunk_frames - waveform.shape[1])
-            )
-        elif waveform.shape[1] > self.chunk_frames:
-            waveform = waveform[:, : self.chunk_frames]
-
-        duration = waveform.shape[1] / self.target_sample_rate
-        if duration > 30:
-            raise ValueError(
-                f"Audio duration {duration:.2f}s exceeds maximum allowed duration of 30s"
-            )
-
-        return waveform, os.path.basename(file_path)
+        except Exception as e:
+            print(f"Error processing: {str(e)}")
+            return self.__getitem__(idx + 1)
 
 
 def analyze_speakers_pronouns(transcript_data):
@@ -119,7 +149,7 @@ def analyze_speakers_pronouns(transcript_data):
                     stats[speaker][pronoun_type] += 1
         return stats
 
-    def find_best_speaker(stats):
+    def find_user_speaker(stats):
         return max(
             stats.items(),
             key=lambda x: x[1]["first_person"] / (x[1]["second_person"] + 0.1),
@@ -127,23 +157,22 @@ def analyze_speakers_pronouns(transcript_data):
         )[0]
 
     speaker_stats = count_pronouns(get_speakers())
-    best_speaker = find_best_speaker(speaker_stats)
+    user_speaker = find_user_speaker(speaker_stats)
 
-    return best_speaker, speaker_stats
+    return user_speaker, speaker_stats
 
 
-def _save_processed_data(
-    embeddings: torch.Tensor,
-    speaker_segments: dict[str, dict],
-    filename: str,
-    output_path: str,
-):
+def get_num_speakers(segments: list) -> int:
+    num_speakers = len(set([i["speaker"] for i in segments if "speaker" in i]))
+    return num_speakers
+
+
+def _save_processed_data(processed_data, filename, output_path):
     subdir = filename[:2]
     full_output_path = os.path.join(output_path, subdir)
     os.makedirs(full_output_path, exist_ok=True)
     output_file = os.path.join(full_output_path, f"{os.path.splitext(filename)[0]}.npz")
-
-    np.savez(output_file, embeddings=embeddings.cpu().numpy(), **speaker_segments)
+    np.savez(output_file, **processed_data)
 
 
 @torch.no_grad()
@@ -151,24 +180,19 @@ def process_audio_chunks(config: PreprocessingConfig):
     if not os.path.exists(config.output_path):
         os.makedirs(config.output_path)
 
-    # Initialize models
     device = torch.device("cuda" if config.use_cuda else "cpu")
 
-    # Load transcription model
-    asr_model = whisperx.load_model(
-        config.transcription_model,
-        device="cuda" if config.use_cuda else "cpu",
-        compute_type="float32" if not config.use_cuda else config.compute_type,
-        asr_options={"multilingual": False, "hotwords": []},
-        language="en",
-    )
-
-    # Load alignment model (will be loaded based on detected language)
+    # Load models
+    with utils.SuppressLogger(SUPPRESS):
+        asr_model = whisperx.load_model(
+            config.transcription_model,
+            device="cuda" if config.use_cuda else "cpu",
+            compute_type="float32" if not config.use_cuda else config.compute_type,
+            language="en",
+        )
     diarize_model = whisperx.DiarizationPipeline(
         device=device, use_auth_token=os.getenv("HF_TOKEN")
     )
-
-    # Load embedding model
     whisper_fe = transformers.WhisperFeatureExtractor.from_pretrained(
         f"openai/whisper-{config.embedding_model}",
         chunk_length=config.chunk_frames // config.sample_rate,
@@ -184,24 +208,36 @@ def process_audio_chunks(config: PreprocessingConfig):
         chunk_frames=config.chunk_frames,
         seed=config.seed,
     )
+    dl = iter(
+        torch.utils.data.DataLoader(
+            dataset, batch_size=1, num_workers=config.num_workers
+        )
+    )
 
-    save_executor = ThreadPoolExecutor(max_workers=config.max_save_workers)
+    save_executor = ThreadPoolExecutor(max_workers=config.num_workers + 1)
 
-    for idx in tqdm(range(len(dataset)), desc="Processing audio chunks"):
-        waveform, filename = dataset[idx]
+    def time_to_idx(time):
+        return int(time * 50)
+
+    for batch in tqdm(dl):
+        waveform = batch["waveform"]
+        filename = batch["filename"]
+
         audio = waveform.squeeze().numpy()
 
         # Get transcription and alignment
-        result = asr_model.transcribe(audio, batch_size=config.inner_batch_size)
-        language = result["language"]
+        with utils.SuppressLogger(SUPPRESS):
+            result = asr_model.transcribe(
+                audio,
+                batch_size=config.inner_batch_size,
+                print_progress=True,
+                combined_progress=True,
+            )
+            if result["language"] != "en":
+                continue
 
-        if language != "en":
-            print(f"skipping weird language {language}")
-            continue
-
-        # Load language-specific alignment model
         align_model, metadata = whisperx.load_align_model(
-            language_code=language, device=device
+            language_code=result["language"], device=device
         )
         result = whisperx.align(
             result["segments"],
@@ -211,50 +247,91 @@ def process_audio_chunks(config: PreprocessingConfig):
             device,  # type: ignore
         )
 
-        # Get speaker diarization
-        diarize_segments = diarize_model(audio)
+        diarize_segments = diarize_model(audio, num_speakers=2)
         result = whisperx.assign_word_speakers(diarize_segments, result)
 
-        # keep only audios with 2 speakers
-        num_speakers = len(set([i["speaker"] for i in result["segments"]]))
-        if num_speakers != 2:
-            print(f"audio had {num_speakers} speakers, skipping ...")
+        # make sure all segments have a speaker
+        no_speaker = False
+        for segment in result["segments"]:
+            if segment.get("speaker") is None:
+                no_speaker = True
+
+        if no_speaker:
+            print("a segment has no speaker")
             continue
 
-        # Get audio embeddings
+        # make sure 2 speakers
+        num_speakers = get_num_speakers(result["segments"])
+        if num_speakers != 2:
+            print(f"1: {num_speakers} speaker skipping ... ")
+            continue
+
+        # make sure identifiable user speaker
+        user_speaker = analyze_speakers_pronouns(result)[0]
+        if user_speaker is None:
+            print("Cant find user speaker, skipping ... ")
+            continue
+
+        # Process segments
+        segments = result["segments"]
+        sequence = []
+        audio_emb_indices = []
+
+        # Find first segment of user speaker
+        start_idx = 0
+        for i, segment in enumerate(result["segments"]):
+            if segment["speaker"] == user_speaker:
+                start_idx = i
+                break
+
+        last_idx = -1
+        for i in range(len(result["segments"]) - 1):
+            if (
+                result["segments"][i]["speaker"] != user_speaker
+                and result["segments"][i + 1]["speaker"] == user_speaker
+            ):
+                last_idx = i
+
+        # Only use segments between start_idx and end_idx
+        cropped_segments = segments[start_idx : last_idx + 1]
+
+        # Check again that audio still has 2 speakers
+        num_speakers = get_num_speakers(cropped_segments)
+        if num_speakers != 2:
+            print("2. Only one speaker skipping ... ")
+            continue
+
         input_features = whisper_fe(
             audio, sampling_rate=config.sample_rate, return_tensors="pt"
         ).to(device)["input_features"]
-        embeddings = embedding_model(input_features).last_hidden_state
+        chunks = torch.split(input_features, 3000, dim=-1)
+        embeddings = torch.cat(
+            [
+                embedding_model(c).last_hidden_state.cpu().to(torch.float16)
+                for c in chunks
+            ],
+            dim=1,
+        )
 
-        print([(i["text"], i["speaker"]) for i in result["segments"]])
+        for segment in cropped_segments:
+            start_time = segment["start"]
+            end_time = segment["end"]
 
-        utils.play_audio(waveform)
-        breakpoint()
+            if segment["speaker"] == user_speaker:
+                start_idx = time_to_idx(start_time)
+                end_idx = time_to_idx(end_time)
+                audio_emb_indices.extend(list(range(start_idx, end_idx)))
+                for i in range(start_idx, end_idx):
+                    sequence.append(f"<a{i}>")
+            else:
+                sequence.append(segment["text"].strip())
 
-        best_speaker = analyze_speakers_pronouns(result)
+        text = " ".join(sequence)
 
-        if best_speaker is None:
-            print("No obvious user speaker, skipping ...")
-            continue
-
-        # Organize segments by speaker
-        speaker_segments = {}
-        for segment in result["segments"]:
-            speaker = segment["speaker"]
-            if speaker not in speaker_segments:
-                speaker_segments[speaker] = {"transcripts": [], "timestamps": []}
-            speaker_segments[speaker]["transcripts"].append(segment["text"])
-            speaker_segments[speaker]["timestamps"].append(
-                [segment["start"], segment["end"]]
-            )
+        processed_data = {"text": text, "audio_emb": embeddings.cpu().numpy()}
 
         save_executor.submit(
-            _save_processed_data,
-            embeddings,
-            speaker_segments,
-            filename,
-            config.output_path,
+            _save_processed_data, processed_data, filename, config.output_path
         )
 
     save_executor.shutdown(wait=True)

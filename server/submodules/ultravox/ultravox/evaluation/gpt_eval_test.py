@@ -1,9 +1,7 @@
 import re
 from unittest import mock
 
-from ultravox.evaluation import eval_types
-from ultravox.evaluation import gpt_eval
-from ultravox.evaluation import gpt_eval_conv
+from ultravox.evaluation import eval_types, gpt_eval, gpt_eval_conv
 
 
 def test_evaluate_conversation():

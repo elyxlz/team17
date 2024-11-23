@@ -1,6 +1,7 @@
-import transformers
 import time
+
 import librosa
+import transformers
 
 pipe = transformers.pipeline(
     model="fixie-ai/ultravox-v0_3-llama-3_2-1b",
@@ -25,5 +26,4 @@ for k in range(10):
     x = pipe({"audio": audio, "turns": turns, "sampling_rate": sr}, max_new_tokens=30)
 end_time = time.time()
 
-print(x)
 print(f"Execution Time: {(end_time - start_time)/10:.2f} seconds")

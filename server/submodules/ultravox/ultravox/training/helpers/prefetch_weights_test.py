@@ -1,5 +1,4 @@
 import transformers
-
 from ultravox.training.helpers import prefetch_weights
 
 TEXT_MODEL = "hf-internal-testing/tiny-random-LlamaForCausalLM"

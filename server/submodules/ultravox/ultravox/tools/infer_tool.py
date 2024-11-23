@@ -11,8 +11,7 @@ import simple_parsing
 from torch.utils import data as data_utils
 
 from ultravox import data as datasets
-from ultravox.evaluation import eval
-from ultravox.evaluation import eval_types
+from ultravox.evaluation import eval, eval_types
 from ultravox.inference import base
 from ultravox.tools import infer_api
 
@@ -94,7 +93,7 @@ def run_tui(
     question_message = messages[-2] if len(messages) > 1 else messages[-1]
     transcript = f' ["{sample.audio_transcript}"]' if sample.audio_transcript else ""
     print(f"Q: {question_message['content']}{transcript}")
-    print(f"A: ", end="")
+    print("A: ", end="")
     start_time = time.time()
     first_token_time = None
     text = ""
