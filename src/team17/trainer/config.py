@@ -34,6 +34,7 @@ class MyUltravoxTrainConfig(utils.BaseConfig):
 
     ## test
     test_every: int | None
+    test_on_exit: bool = True
     generate_kwargs: dict
 
     ## logging and checkpointing

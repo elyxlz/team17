@@ -371,14 +371,14 @@ def train(config: MyUltravoxTrainConfig) -> None:
                     step=state.step,
                     config=config,
                 )
-
-                model = utils.unwrap_model(state.model)
-                utils.rank_0_only(push_to_hub)(
-                    model,
-                    state.train_dataset.processor,
-                    config=config,
-                    step=state.step,
-                )
+                if config.test_on_exit:
+                    model = utils.unwrap_model(state.model)
+                    utils.rank_0_only(push_to_hub)(
+                        model,
+                        state.train_dataset.processor,
+                        config=config,
+                        step=state.step,
+                    )
                 import sys
 
                 sys.exit(0)
