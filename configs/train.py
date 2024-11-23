@@ -12,9 +12,9 @@ config = MyUltravoxTrainConfig(
     seed=42,
     run_name="blabla",
     # Model path
-    # ultravox_pretrained_path="i2xmortal/Llama-3.2-300M-untrained",
-    # ultravox_pretrained_path="fixie-ai/ultravox-v0_4_1-llama-3_1-8b",
-    ultravox_pretrained_path=None,
+    ultravox_pretrained_path="fixie-ai/ultravox-v0_4_1-llama-3_1-8b"
+    if not testing
+    else None,
     # Audio configuration
     sample_rate=24000,
     # LoRA parameters
