@@ -44,7 +44,9 @@ class LossConfig:
 def init_model(config: MyUltravoxTrainConfig):
     device = utils.get_device()
     if config.ultravox_pretrained_path is not None:
-        model = UltravoxModel.from_pretrained(config.ultravox_pretrained_path)
+        model = UltravoxModel.from_pretrained(
+            config.ultravox_pretrained_path, audio_latency_block_size=None
+        )
     else:
         model = UltravoxModel(
             UltravoxConfig(
