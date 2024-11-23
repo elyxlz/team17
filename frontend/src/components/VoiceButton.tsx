@@ -75,7 +75,7 @@ export default function VoiceButton({ onRecordingComplete, isProcessing, onError
   return (
     <motion.button
       className={`w-32 h-32 rounded-full flex items-center justify-center text-white
-        ${isRecording ? 'bg-red-500' : 'bg-blue-500'}
+        ${isRecording ? 'bg-red-500/50' : 'bg-transparent'}
         ${isProcessing ? 'opacity-70 cursor-wait' : 'hover:bg-opacity-90'}
         transition-colors duration-200 ease-in-out`}
       variants={buttonVariants}

@@ -1,18 +1,29 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Brain } from 'lucide-react';
-import { AnimatePresence } from 'framer-motion';
-import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-router-dom';
+import { AnimatePresence, motion } from 'framer-motion';
+import { BrowserRouter as Router, Routes, Route, useNavigate, Navigate } from 'react-router-dom';
 import VoiceButton from './components/VoiceButton';
 import ResponseDisplay from './components/ResponseDisplay';
 import ErrorMessage from './components/ErrorMessage';
-import { processMessageWithOpenAI, type AIResponse } from './utils/openai';
-import { processMessageWithLocal } from './utils/local';
+import { processMessageWithOpenAI } from './utils/openai';
 import { ConfigError } from './utils/config';
 import Register from './components/Register.tsx';
 import Login from './components/Login.tsx';
 import ProtectedRoute from './components/ProtectedRoute.tsx';
 import { ChatHistory } from './components/ChatHistory';
 import { Conversations } from './pages/Conversations.tsx';
+import "./styles.css";
+import { Header } from './components/Header';
+import { AnimatedText } from './components/AnimatedText';
+import { AnimatedBlob } from './components/AnimatedBlob';
+import { Footer } from './components/Footer';
+import { ScrollIndicator } from './components/ScrollIndicator';
+
+// Update this interface to match the one from openai.ts
+interface AIResponse {
+  text: string;
+  audioUrl?: string;  // Optional property as defined in openai.ts
+}
 
 function VoiceAssistant() {
   const [isProcessing, setIsProcessing] = useState(false);
@@ -27,6 +38,18 @@ function VoiceAssistant() {
     const saved = localStorage.getItem('chatHistory');
     return saved ? JSON.parse(saved) : [];
   });
+  const [scrollY, setScrollY] = useState(0);
+  const text = "Your own private therapist to prevent depression.".split(" ");
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setScrollY(window.scrollY);
+    };
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  const isAuthenticated = localStorage.getItem('isAuthenticated') === 'true';
 
   const handleError = (message: string) => {
     setError(message);
@@ -39,8 +62,7 @@ function VoiceAssistant() {
     setIsProcessing(true);
 
     try {
-      // const aiResponse = await processMessageWithOpenAI(audioBlob);
-      const aiResponse = await processMessageWithLocal(audioBlob);
+      const aiResponse = await processMessageWithOpenAI(audioBlob);
       setResponse(aiResponse);
 
       const newHistoryItem = {
@@ -63,58 +85,59 @@ function VoiceAssistant() {
     }
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('isAuthenticated');
-    navigate('/login');
+  const handleAuthAction = () => {
+    if (isAuthenticated) {
+      localStorage.removeItem('isAuthenticated');
+      navigate('/login');
+    } else {
+      navigate('/login');
+    }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex flex-col items-center justify-center p-4">
+    <div className="App">
+      <AnimatedBlob scrollY={scrollY} />
+      <AnimatedText text={text} scrollY={scrollY} />
       <button 
-        onClick={handleLogout}
-        className="absolute top-4 right-4 px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 transition-colors"
+        onClick={handleAuthAction}
+        className={`fixed top-4 right-4 px-4 py-2 ${
+          isAuthenticated ? 'text-black hover:italic' : 'hidden'
+        } rounded transition-colors`}
       >
-        Logout
+        {isAuthenticated ? 'Logout' : 'Login'}
       </button>
+    
+        <div className="grosse_div min-h-screen bg-gradient-to-br flex flex-col items-center justify-center p-4">
+          
+          <AnimatePresence>
+            {error && <ErrorMessage message={error} />}
+          </AnimatePresence>
 
-      <div className="text-center mb-12">
-        <div className="flex items-center justify-center mb-4">
-          <Brain className="w-12 h-12 text-blue-600 mr-3" />
-          <h1 className="text-4xl font-bold text-gray-800">Voice Assistant</h1>
-        </div>
-        <p className="text-gray-600 text-lg">Speak your mind, and let AI assist you</p>
-      </div>
-
-      <AnimatePresence>
-        {error && <ErrorMessage message={error} />}
-      </AnimatePresence>
-
-      <div className="relative">
-        <VoiceButton
-          onRecordingComplete={handleRecordingComplete}
-          isProcessing={isProcessing}
-          onError={handleError}
-        />
-        {isProcessing && (
-          <div className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 whitespace-nowrap">
-            <p className="text-sm text-gray-600">Processing your request...</p>
+            <ResponseDisplay
+              response={response}
+              isVisible={!!response && !error}
+              />
+          <div className="relative">
+            <VoiceButton
+              onRecordingComplete={handleRecordingComplete}
+              isProcessing={isProcessing}
+              onError={handleError}
+              />
+            {isProcessing && (
+              <div className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 whitespace-nowrap">
+                <p className="text-sm text-gray-600">Processing your request...</p>
+              </div>
+            )}
           </div>
-        )}
-      </div>
-      <div className="mt-4 text-center text-gray-500 text-sm">
-        Click the button and start speaking
-      </div>
+          <div className="mt-4 text-center text-gray-500 text-sm">
+            Click the button and start speaking
+          </div>
 
-      <ResponseDisplay
-        response={response}
-        isVisible={!!response && !error}
-      />
+            {history.length > 0 && <ChatHistory history={history} />}
 
-      {history.length > 0 && <ChatHistory history={history} />}
-
-      <footer className="fixed bottom-4 text-center text-gray-500 text-sm">
-        Your conversation is only stored locally on your device, it never leaves your control. None of what you will say can be accessed or used.
-      </footer>
+          <Footer />
+        </div>
+      
     </div>
   );
 }
@@ -123,8 +146,22 @@ function App() {
   return (
     <Router>
       <Routes>
-        <Route path="/register" element={<Register />} />
-        <Route path="/login" element={<Login />} />
+        <Route 
+          path="/register" 
+          element={
+            localStorage.getItem('isAuthenticated') === 'true' 
+              ? <Navigate to="/" /> 
+              : <Register />
+          } 
+        />
+        <Route 
+          path="/login" 
+          element={
+            localStorage.getItem('isAuthenticated') === 'true' 
+              ? <Navigate to="/" /> 
+              : <Login />
+          } 
+        />
         <Route
           path="/"
           element={
@@ -133,7 +170,14 @@ function App() {
             </ProtectedRoute>
           }
         />
-        <Route path="/conversations" element={<Conversations />} />
+        <Route
+          path="/conversations"
+          element={
+            <ProtectedRoute>
+              <Conversations />
+            </ProtectedRoute>
+          }
+        />
       </Routes>
     </Router>
   );

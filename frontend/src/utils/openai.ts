@@ -5,8 +5,13 @@ export type AIResponse = {
   audioUrl?: string;
 };
 
+const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
+if (!apiKey) {
+  throw new Error('OpenAI API key is not configured in environment variables');
+}
+
 const openai = new OpenAI({
-  apiKey: import.meta.env.VITE_OPENAI_API_KEY,
+  apiKey: apiKey,
   dangerouslyAllowBrowser: true
 });
 
