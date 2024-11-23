@@ -12,7 +12,7 @@ config = MyUltravoxTrainConfig(
     seed=42,
     run_name="blabla",
     # Model path
-    ultravox_pretrained_path="fixie-ai/ultravox-v0_4_1-llama-3_1-8b"
+    ultravox_pretrained_path="fixie-ai/ultravox-v0_3-llama-3_2-1b"
     if not testing
     else None,
     # Audio configuration
