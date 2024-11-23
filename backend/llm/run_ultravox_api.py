@@ -17,11 +17,28 @@ app = FastAPI(title="Text-to-Speech & Speech-to-Text API", version="1.0")
 
 logger.info("Initializing Ultravox Inference...")
 ultravox = UltravoxInference(
-    model_path="./submodules/ultravox/ultravox-v0_3-llama-3_2-1b",
-    conversation_mode=True,
+    model_path="elyx/batman-1",
+    conversation_mode=False,
     device="mps",
     data_type="float16",
 )
+
+# Compile ultravox.model
+# logger.info("Compiling Ultravox model...")
+# ultravox.model.compile(backend="onnxrt")
+# Not working on MPS with Inductor, or OpenXLA
+
+# print(torch._dynamo.list_backends())
+
+
+# logger.info("Quantizing Ultravox model...")
+# ultravox.model = torch.ao.quantization.quantize_dynamic(
+#     ultravox.model,  # the original model
+#     {torch.nn.Linear},  # a set of layers to dynamically quantize
+#     dtype=torch.qint8,  # the target dtype for quantized weights
+# )
+# Quantization gonna fail on MPS but you can fallback to CPU with PYTORCH_ENABLE_MPS_FALLBACK=1
+
 logger.info("Ultravox Inference initialized successfully.")
 
 
@@ -54,10 +71,19 @@ async def stt_endpoint_file(audio_file: UploadFile = File(...)):
             path=temp_file_path,
             prompt="<|audio|>",
         )
+        sample.add_past_messages(
+            [
+                {
+                    "role": "system",
+                    "content": "You are a compassionate and empathetic psychologist, focused on active listening and providing thoughtful, supportive responses to emotional needs. Please avoid including non-verbal descriptions or actions (e.g., *offers a warm smile*) in your responses to ensure they play well with text-to-speech systems. Never make more than 2 sentences.",
+                }
+            ]
+        )
 
         logger.info("Running inference on the audio sample.")
         voice_output = ultravox.infer(
             sample=sample,
+            max_tokens=40,
         )
 
         logger.info("Inference completed successfully. Returning response.")
@@ -76,7 +102,7 @@ def reset_ultravox():
     global ultravox
     logger.info("Resetting Ultravox Inference...")
     ultravox = UltravoxInference(
-        model_path="./submodules/ultravox/ultravox-v0_3-llama-3_2-1b",
+        model_path="./ultravox/ultravox-v0_3-llama-3_2-1b",
         conversation_mode=True,
         device="mps",
         data_type="float16",

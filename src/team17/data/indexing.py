@@ -38,6 +38,8 @@ def search_youtube(
                 search_result = search.result()
                 if search_result is None:
                     raise ValueError("Search result is None")
+                if not isinstance(search_result, dict):
+                    raise ValueError("Search result must be a dictionary")
                 search_results = search_result.get("result", [])
                 for video in search_results:
                     duration_str = video.get("duration")

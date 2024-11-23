@@ -8,48 +8,48 @@ interface HistoryItem {
   response: AIResponse;
 }
 
-interface GroupedConversation {
+
+interface ChatSession {
+  sessionId: string;
   startTime: string;
   messages: HistoryItem[];
 }
 
 export function Conversations() {
   const navigate = useNavigate();
-  const [groupedConversations, setGroupedConversations] = useState<GroupedConversation[]>([]);
+  const [chatSessions, setChatSessions] = useState<ChatSession[]>([]);
 
   useEffect(() => {
-    const savedHistory = localStorage.getItem('chatHistory');
-    if (savedHistory) {
+    const savedSessions = localStorage.getItem('chatSessions');
+    if (savedSessions) {
       try {
-        const parsedHistory: HistoryItem[] = JSON.parse(savedHistory);
-        
-        // Group conversations by hour
-        const grouped = parsedHistory.reduce((acc: GroupedConversation[], item) => {
-          const itemTime = new Date(item.timestamp);
-          const lastGroup = acc[acc.length - 1];
-          
-          if (lastGroup && 
-              new Date(lastGroup.startTime).getTime() + 3600000 > itemTime.getTime() && 
-              lastGroup.messages.length < 10) {
-            lastGroup.messages.push(item);
-          } else {
-            acc.push({
-              startTime: item.timestamp,
-              messages: [item]
-            });
-          }
-          return acc;
-        }, []);
-
-        setGroupedConversations(grouped);
+        const parsedSessions: ChatSession[] = JSON.parse(savedSessions);
+        const sortedSessions = parsedSessions
+          .map(session => ({
+            ...session,
+            messages: session.messages.filter(msg => {
+              const msgTime = new Date(msg.timestamp).getTime();
+              const sessionTime = new Date(session.startTime).getTime();
+              const nextSession = parsedSessions.find(s => 
+                new Date(s.startTime).getTime() > sessionTime && 
+                new Date(s.startTime).getTime() <= msgTime
+              );
+              return msgTime >= sessionTime && !nextSession;
+            })
+          }))
+          .filter(session => session.messages.length > 0)
+          .sort((a, b) => 
+            new Date(b.startTime).getTime() - new Date(a.startTime).getTime()
+          );
+        setChatSessions(sortedSessions);
       } catch (error) {
-        console.error('Error parsing chat history:', error);
-        setGroupedConversations([]);
+        console.error('Error parsing chat sessions:', error);
+        setChatSessions([]);
       }
     }
   }, []);
 
-  if (groupedConversations.length === 0) {
+  if (chatSessions.length === 0) {
     return (
       <div className="container mx-auto px-4 py-8">
         <h1 className="text-2xl font-bold mb-6">All Conversations</h1>
@@ -70,18 +70,20 @@ export function Conversations() {
         </button>
       </div>
       <div className="space-y-8">
-        {groupedConversations.map((group, groupIndex) => (
-          <div key={groupIndex} className="border rounded-lg p-4">
+        {chatSessions.map((session) => (
+          <div key={session.sessionId} className="border rounded-lg p-4">
             <div className="text-sm text-gray-500 mb-4">
-              Conversation started at {new Date(group.startTime).toLocaleString()}
+              Session started at {new Date(session.startTime).toLocaleString()}
             </div>
             <div className="space-y-4">
-              {group.messages.map((item, index) => (
+              {session.messages.map((item, index) => (
                 <div 
                   key={index}
                   className="bg-white rounded-lg shadow-sm p-4 border border-gray-200"
                 >
-                  <div className="text-xs text-gray-500 mb-2">{item.timestamp}</div>
+                  <div className="text-xs text-gray-500 mb-2">
+                    {new Date(item.timestamp).toLocaleString()}
+                  </div>
                   <div className="space-y-2">
                     <p className="text-gray-800">
                       <span className="font-semibold">You:</span> {item.transcription}
@@ -98,4 +100,4 @@ export function Conversations() {
       </div>
     </div>
   );
-} 
+}

@@ -1,16 +1,12 @@
-import { motion } from 'framer-motion';
-
 export const ScrollIndicator = () => {
   return (
-    <motion.div 
-      className="w-20 h-20 flex items-center justify-center rounded-full bg-white/10 backdrop-blur-sm"
-      animate={{
-        y: [0, 10, 0],
-      }}
-      transition={{
-        duration: 1.5,
-        repeat: Infinity,
-        ease: "easeInOut",
+    <button 
+      className="w-20 h-20 flex items-center justify-center rounded-full bg-white/10 backdrop-blur-sm animate-bounce"
+      onClick={() => {
+        window.scrollTo({
+          top: document.body.scrollHeight,
+          behavior: "smooth",
+        });
       }}
     >
       <svg 
@@ -35,6 +31,6 @@ export const ScrollIndicator = () => {
           strokeLinejoin="round"
         />
       </svg>
-    </motion.div>
+    </button>
   );
 };

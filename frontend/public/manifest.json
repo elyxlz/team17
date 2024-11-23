@@ -1,0 +1,25 @@
+{
+    "short_name": "Name",
+    "name": "Name",
+    "description": "Name",
+    // https://realfavicongenerator.net/
+    "icons": [
+      {
+        "src": "logo.png",
+        "type": "image/png",
+        "sizes": "192x192"
+      },
+      {
+        "src": "logo.png",
+        "type": "image/png",
+        "sizes": "512x512"
+      }
+    ],
+    "start_url": "/",
+    "display": "minimal-ui",
+    "background_color": "#ffffff",
+    "theme_color": "#000000",
+    "orientation": "portrait-primary",
+    "scope": "/"
+  }
+  
