@@ -1,20 +1,17 @@
-from dataclasses import dataclass
 import datetime
 import logging
 import pkgutil
 import tempfile
+from dataclasses import dataclass
 
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
+import mlx.core as mx
+import soundfile as sf
 from f5_tts_mlx.cfm import F5TTS
 from f5_tts_mlx.utils import convert_char_to_pinyin
-
-
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
-import mlx.core as mx
 from mlx import nn as nn
-
-import soundfile as sf
 
 # Set up logging
 logging.basicConfig(
