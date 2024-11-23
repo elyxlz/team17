@@ -130,12 +130,13 @@ class UltravoxModel(transformers.LlamaPreTrainedModel):
     def forward(
         self,
         input_ids: torch.Tensor,
-        audio_values: Optional[torch.FloatTensor] = None,
+        audio_values: Optional[
+            torch.FloatTensor
+        ] = None,  # FOR THIS DEFINITION THIS IS THE WHISPER EMBEDDINGS
         inputs_embeds: Optional[torch.FloatTensor] = None,
         labels: Optional[torch.Tensor] = None,
         attention_mask: Optional[torch.Tensor] = None,
         audio_token_start_idx: Optional[torch.Tensor] = None,
-        audio_len: Optional[torch.Tensor] = None,
         audio_token_len: Optional[torch.Tensor] = None,
         past_key_values: Optional[Union[Tuple, transformers.cache_utils.Cache]] = None,
         # the alt_* fields are needed for KL divergence loss
@@ -222,7 +223,6 @@ class UltravoxModel(transformers.LlamaPreTrainedModel):
         audio_values: Optional[torch.FloatTensor] = None,
         audio_token_start_idx: Optional[torch.Tensor] = None,
         audio_token_len: Optional[torch.Tensor] = None,
-        audio_len: Optional[torch.Tensor] = None,
         past_key_values: Optional[Union[Tuple, transformers.cache_utils.Cache]] = None,
         attention_mask: Optional[torch.Tensor] = None,
         inputs_embeds: Optional[torch.Tensor] = None,
@@ -251,7 +251,6 @@ class UltravoxModel(transformers.LlamaPreTrainedModel):
                 audio_token_start_idx - prefill_start_idx
             )
             model_input["audio_token_len"] = audio_token_len
-            model_input["audio_len"] = audio_len
 
         return model_input
 
