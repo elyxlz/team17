@@ -3,7 +3,6 @@ from typing import List, Optional
 
 import huggingface_hub
 import transformers
-
 from ultravox.model import wandb_utils
 from ultravox.training import config_base
 

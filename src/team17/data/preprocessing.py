@@ -328,10 +328,7 @@ def process_audio_chunks(config: PreprocessingConfig):
 
         text = " ".join(sequence)
 
-        processed_data = {
-            "text": text,
-            "audio_emb": embeddings.cpu().numpy(),
-        }
+        processed_data = {"text": text, "audio_emb": embeddings.cpu().numpy()}
 
         save_executor.submit(
             _save_processed_data, processed_data, filename, config.output_path

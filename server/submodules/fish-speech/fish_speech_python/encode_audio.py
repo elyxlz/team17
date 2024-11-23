@@ -1,8 +1,9 @@
 import argparse
+from pathlib import Path
+
 import librosa
 import numpy as np
 import soundfile as sf
-from pathlib import Path
 from fish_speech import FishSpeechModel
 
 

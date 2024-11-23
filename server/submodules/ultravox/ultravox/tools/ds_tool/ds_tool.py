@@ -15,16 +15,12 @@ import librosa
 import openai
 import simple_parsing
 import soundfile as sf
+import ultravox.tools.ds_tool.chunked_dataset as chunked_dataset
 import yaml
 from praatio import textgrid
-from tenacity import retry
-from tenacity import stop_after_attempt
-from tenacity import wait_fixed
-
-import ultravox.tools.ds_tool.chunked_dataset as chunked_dataset
+from tenacity import retry, stop_after_attempt, wait_fixed
 from ultravox.data import text_proc
-from ultravox.tools.ds_tool import caching
-from ultravox.tools.ds_tool import tts
+from ultravox.tools.ds_tool import caching, tts
 
 tts_client: caching.CachingTtsWrapper
 chat_client: caching.CachingChatWrapper
@@ -61,7 +57,7 @@ def apply_jinja_template(
         print(f"template: {template}")
         print(f"sample keys: {list(sample.keys())}, excluded keys: {exclude_fields}")
         raise ValueError(
-            f"Template rendering failed. Make sure all keys in the template exist in the sample."
+            "Template rendering failed. Make sure all keys in the template exist in the sample."
         ) from e
 
 
@@ -402,7 +398,11 @@ class DatasetToolArgs:
 
     task: Union[TtsTask, TextGenerationTask, TimestampGenerationTask] = (
         simple_parsing.subgroups(
-            {"tts": TtsTask, "textgen": TextGenerationTask, "timestamp": TimestampGenerationTask},  # type: ignore
+            {
+                "tts": TtsTask,
+                "textgen": TextGenerationTask,
+                "timestamp": TimestampGenerationTask,
+            },  # type: ignore
             default_factory=TtsTask,
             positional=True,
         )

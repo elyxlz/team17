@@ -7,10 +7,7 @@ import torch
 from torch.utils import data
 from transformers.feature_extraction_utils import BatchFeature
 
-from ultravox.data import data_sample
-from ultravox.data import datasets
-from ultravox.data import registry
-from ultravox.data import types
+from ultravox.data import data_sample, datasets, registry, types
 
 
 class FakeSizedIterableDataset(datasets.SizedIterableDataset):

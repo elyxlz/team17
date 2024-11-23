@@ -1,8 +1,9 @@
 import argparse
+import sys
+
 import numpy as np
 import torch
-import sys
-import os
+
 
 def load_and_save_c_order(file_path):
     try:
@@ -12,6 +13,7 @@ def load_and_save_c_order(file_path):
         print(f"Error processing {file_path}: {str(e)}")
         return None, None
 
+
 def print_array_info(array, name):
     print(f"\n{name} Information:")
     print(f"Shape: {array.shape}")
@@ -20,6 +22,7 @@ def print_array_info(array, name):
     print(f"Min value: {np.min(array)}")
     print(f"Max value: {np.max(array)}")
     print(f"Mean value: {np.mean(array)}")
+
 
 def compare_npy_files(file1, file2, tolerance):
     new_file1, array1 = load_and_save_c_order(file1)
@@ -32,7 +35,9 @@ def compare_npy_files(file1, file2, tolerance):
     print_array_info(array2, "Array 2")
 
     if array1.shape != array2.shape:
-        print(f"\nError: Arrays have different shapes: {array1.shape} vs {array2.shape}")
+        print(
+            f"\nError: Arrays have different shapes: {array1.shape} vs {array2.shape}"
+        )
         return None
 
     # Convert numpy arrays to PyTorch tensors
@@ -52,11 +57,19 @@ def compare_npy_files(file1, file2, tolerance):
 
     return are_close, num_diff, tensor1.numel(), new_file1, new_file2
 
+
 def main():
-    parser = argparse.ArgumentParser(description='Compare two .npy files and show detailed differences')
-    parser.add_argument('file1', type=str, help='Path to the first .npy file')
-    parser.add_argument('file2', type=str, help='Path to the second .npy file')
-    parser.add_argument('--tolerance', type=float, default=1e-3, help='Tolerance for comparison (default: 1e-3)')
+    parser = argparse.ArgumentParser(
+        description="Compare two .npy files and show detailed differences"
+    )
+    parser.add_argument("file1", type=str, help="Path to the first .npy file")
+    parser.add_argument("file2", type=str, help="Path to the second .npy file")
+    parser.add_argument(
+        "--tolerance",
+        type=float,
+        default=1e-3,
+        help="Tolerance for comparison (default: 1e-3)",
+    )
 
     args = parser.parse_args()
 
@@ -71,11 +84,12 @@ def main():
     print(f"Arrays are close: {are_close}")
     print(f"Number of elements exceeding tolerance: {num_diff} out of {total_elements}")
     print(f"Percentage of differing elements: {(num_diff / total_elements) * 100:.2f}%")
-    
-    print(f"\nNew C-order files created:")
+
+    print("\nNew C-order files created:")
     print(f"File 1: {new_file1}")
     print(f"File 2: {new_file2}")
     print("\nPlease use these new files with Candle.rs")
+
 
 if __name__ == "__main__":
     main()
