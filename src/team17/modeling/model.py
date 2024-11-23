@@ -34,6 +34,7 @@ class UltravoxModel(transformers.LlamaPreTrainedModel):
     config: UltravoxConfig  # for type hinting
     # Usually we load encoder and LLM weights from a pretrained model separately, so they are allowed to be missing
     _keys_to_ignore_on_load_missing = ["audio_tower.*", "language_model.*"]
+    audio_latency_block_size = None
 
     def __init__(self, config: UltravoxConfig):
         super().__init__(config)
